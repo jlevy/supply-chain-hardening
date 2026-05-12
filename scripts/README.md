@@ -13,7 +13,7 @@ enforces.
 
 ## Scripts
 
-### `audit-npm.py`
+### `audit_npm.py`
 
 Audits installed npm packages against the
 [OSV vulnerability database](https://osv.dev/). Primary use case: after
@@ -24,19 +24,19 @@ Usage:
 
 ```sh
 # Scan the global node_modules (default; resolves $(npm root -g))
-uv run scripts/audit-npm.py
+uv run scripts/audit_npm.py
 
 # Scan a project's node_modules
-uv run scripts/audit-npm.py --node-modules ./node_modules
+uv run scripts/audit_npm.py --node-modules ./node_modules
 
 # Check specific package@version pairs without a directory scan
-uv run scripts/audit-npm.py --packages chalk@5.6.1 debug@4.4.2
+uv run scripts/audit_npm.py --packages chalk@5.6.1 debug@4.4.2
 
 # Machine-readable output for CI or piping
-uv run scripts/audit-npm.py --json > audit.json
+uv run scripts/audit_npm.py --json > audit.json
 
 # Fallback when uv is not installed (any Python 3.11+):
-python3 scripts/audit-npm.py
+python3 scripts/audit_npm.py
 ```
 
 Exit codes:
@@ -74,7 +74,7 @@ osv-scanner scan -L pnpm-lock.yaml
 `osv-scanner` does not directly scan an already-installed global `node_modules` tree —
 there is no lockfile in `$(npm root -g)`. After `npm install -g <pkg>`, the only way to
 verify the install via `osv-scanner` is to construct a synthetic lockfile.
-`audit-npm.py` fills that gap with a small, single-file Python program that walks the
+`audit_npm.py` fills that gap with a small, single-file Python program that walks the
 tree and queries the OSV API directly.
 
 ## Auditing The Scripts Themselves

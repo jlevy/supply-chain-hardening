@@ -74,10 +74,10 @@ consistent across entries.
 
 ```sh
 # Replace with exact commands invoked. Examples:
-uv run scripts/audit-npm.py --help
-uv run scripts/audit-npm.py --packages chalk@5.6.1 debug@4.4.2 chalk@5.6.2
-uv run scripts/audit-npm.py
-uv run scripts/audit-npm.py --node-modules /path/to/project/node_modules
+uv run scripts/audit_npm.py --help
+uv run scripts/audit_npm.py --packages chalk@5.6.1 debug@4.4.2 chalk@5.6.2
+uv run scripts/audit_npm.py
+uv run scripts/audit_npm.py --node-modules /path/to/project/node_modules
 ```
 
 ### Raw Findings

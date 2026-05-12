@@ -100,12 +100,12 @@ Zero third-party dependencies; runnable with `uv run` (preferred) or `python3`:
 
 ```sh
 # After `npm install -g <anything>`, back-check the global tree:
-uv run scripts/audit-npm.py
+uv run scripts/audit_npm.py
 # or, without uv:
-python3 scripts/audit-npm.py
+python3 scripts/audit_npm.py
 
 # Check a specific package@version pair without a directory scan:
-uv run scripts/audit-npm.py --packages chalk@5.6.1 debug@4.4.2
+uv run scripts/audit_npm.py --packages chalk@5.6.1 debug@4.4.2
 ```
 
 See [scripts/README.md](../scripts/README.md) for full usage, exit codes, and the
@@ -232,7 +232,7 @@ consistent across entries.
 
 ### When To Open A New Entry
 
-- After every `audit-npm.py` run, or any `osv-scanner` run that surfaces hits.
+- After every `audit_npm.py` run, or any `osv-scanner` run that surfaces hits.
 - After installing or upgrading a globally-scoped npm tool (`npm install -g`,
   `pnpm add -g`).
 - After receiving an attack disclosure from a Tier-2 feed (Aikido, StepSecurity, Unit
