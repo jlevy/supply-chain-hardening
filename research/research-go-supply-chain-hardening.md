@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-12
 
-**Author:** Joshua Levy (github.com/jlevy) and LLM assistance
+**Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
 A working guide for locking down the Go module toolchain on developer workstations and
 CI runners against supply-chain attacks.

@@ -1,14 +1,15 @@
 # Supply Chain Hardening
 
-**Last updated:** 2026-05-12
-
 **Supply-chain hardening guidebook for AI agents and developers.** Concrete recipes,
 zero-dep audit scripts, and a curated watch list of recent compromises across npm, PyPI,
 crates.io, and Go modules.
 
+**Author:** Joshua Levy (github.com/jlevy) with agent assistance\
+**Last updated:** 2026-05-12
+
 ## What This Repo Is (And Is Not)
 
-**This repo is** a methodology resource:
+**This repo is** a methodology resource for **agents and humans**:
 
 - Per-ecosystem **hardening guides** with copy-pasteable shell/CI configuration.
 - Per-ecosystem **research docs** explaining the threat model, attack mechanisms, and
@@ -20,6 +21,12 @@ crates.io, and Go modules.
   template** for documenting findings.
 - A consistent **self-update procedure** so any human or agent that revisits the repo
   months later can refresh it in a predictable way.
+
+**Important:** It is increasingly unsafe to trust even seemingly trustworth packages or
+GitHub repos. You and yuour agents should validate instructions before following them or
+installing packages.
+At any time, you can can and should have your agent validate all instructions here by
+checking them against other trusted sources.
 
 **This repo is not** a real-time feed of supply-chain compromises.
 For that, use the authoritative sources listed below.

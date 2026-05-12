@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-12
 
-**Author:** Joshua Levy (github.com/jlevy) and LLM assistance
+**Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
 A working guide for locking down `npm`, `pnpm`, `yarn`, and `bun` on developer
 workstations and CI runners against the 2025-2026 supply-chain attack wave.

@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-12
 
-**Author:** Joshua Levy (github.com/jlevy) and LLM assistance
+**Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
 Procedures for keeping the docs in this repo current.
 Three doc categories require updates on different cadences:

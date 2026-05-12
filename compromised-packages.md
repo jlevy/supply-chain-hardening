@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-12
 
-**Author:** Joshua Levy (github.com/jlevy) and LLM assistance
+**Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
 A cross-ecosystem reference table of named supply-chain attacks on open-source package
 registries. Scope: malicious-package incidents only (maintainer takeover, worm

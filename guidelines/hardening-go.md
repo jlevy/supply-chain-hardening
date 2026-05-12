@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-12
 
-**Author:** Joshua Levy (github.com/jlevy) and LLM assistance
+**Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
 The minimum action list to harden a workstation or CI runner against Go module
 supply-chain attacks, and to check whether you have already been compromised.
