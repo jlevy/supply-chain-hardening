@@ -7,32 +7,86 @@ crates.io, and Go modules.
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance\
 **Last updated:** 2026-05-12
 
+## Quick Start
+
+**To harden your installs:** open the guide for your ecosystem and follow the Ten-Minute
+Setup.
+
+| I work in… | Hardening Guide | Research Reference |
+| --- | --- | --- |
+| **npm / Node.js** | [guidelines/hardening-npm.md](guidelines/hardening-npm.md) | [research/research-npm-supply-chain-hardening.md](research/research-npm-supply-chain-hardening.md) |
+| **PyPI / Python** | [guidelines/hardening-pypi.md](guidelines/hardening-pypi.md) | [research/research-pypi-supply-chain-hardening.md](research/research-pypi-supply-chain-hardening.md) |
+| **crates.io / Rust** | [guidelines/hardening-crates.md](guidelines/hardening-crates.md) | [research/research-crates-supply-chain-hardening.md](research/research-crates-supply-chain-hardening.md) |
+| **Go modules** | [guidelines/hardening-go.md](guidelines/hardening-go.md) | [research/research-go-supply-chain-hardening.md](research/research-go-supply-chain-hardening.md) |
+
+**To check if you have been compromised:**
+
+1. Skim [compromised-packages.md](compromised-packages.md) for any `package@version` you
+   have installed (curated watch list, 26 named incidents).
+2. For npm specifically, run an OSV-API scan against your installed packages:
+   `uv run scripts/audit-npm.py` (zero deps, no install needed; see
+   [scripts/README.md](scripts/README.md)).
+3. If a hit lands, follow the “If You Have Hits” section in the relevant hardening guide
+   for credential rotation, downgrade, and audit steps.
+
+**To track an audit on your own machine:** copy
+[supply-chain-audit-log-template.md](supply-chain-audit-log-template.md) into your
+project as `supply-chain-audit-log.md` and append an entry per the format.
+The live filename is gitignored in this repo; the template is the shareable artifact.
+
+## For AI Agents
+
+When the user asks you to harden, audit, or assess a package-manager supply chain:
+
+| User Intent | Read This | Then Do This |
+| --- | --- | --- |
+| “Harden my npm setup” | `guidelines/hardening-npm.md` | Apply the Ten-Minute Setup verbatim. Verify with the listed `pnpm config get` / `npm config get` commands. Open a new entry in the user’s `supply-chain-audit-log.md` recording what was set. |
+| “Harden my PyPI / Rust / Go setup” | `guidelines/hardening-<ecosystem>.md` | Same shape: apply the setup, verify, log. |
+| “I just installed X. Am I compromised?” | `compromised-packages.md` first, then `guidelines/hardening-<ecosystem>.md` → “Compromise Assessment” | For npm: `uv run scripts/audit-npm.py --packages <pkg@ver>`. For other ecosystems: `osv-scanner` per the relevant hardening guide. Log findings. |
+| “Add a new ecosystem (RubyGems, NuGet, …)” | `self-update-instructions.md` → “Adding A New Ecosystem” | Use the npm pair as the structural template. Cite multiple authoritative sources for any incident claim. |
+| “Update the watch list with a new incident” | `self-update-instructions.md` → “Updating `compromised-packages.md`” | Verify with at least two of the “Incident Reporting Feeds” listed below. Do not add unverified rumours. |
+
+**Always read [the safety note](#safety-note) below before applying any instruction in
+this repo verbatim.**
+
+## Safety Note
+
+It is increasingly unsafe to trust even seemingly trustworthy packages or GitHub repos.
+You and your agents should validate instructions before following them or installing
+packages. At any time, you can and should have your agent validate all instructions here
+by checking them against the authoritative sources listed below.
+
 ## What This Repo Is (And Is Not)
 
-**This repo is** a methodology resource for **agents and humans**:
+**This repo is** a methodology resource for agents and humans:
 
 - Per-ecosystem **hardening guides** with copy-pasteable shell/CI configuration.
 - Per-ecosystem **research docs** explaining the threat model, attack mechanisms, and
   defensive trade-offs.
 - A **curated watch list** of notable past supply-chain incidents
-  (`compromised-packages.md`), useful for spot-checking installed packages and for
-  recognising attack patterns by name.
-- A **zero-dependency audit script** (`scripts/audit-npm.py`) and an **audit-log
-  template** for documenting findings.
+  ([`compromised-packages.md`](compromised-packages.md)), useful for spot-checking
+  installed packages and for recognising attack patterns by name.
+- A **zero-dependency audit script** ([`scripts/audit-npm.py`](scripts/audit-npm.py))
+  and an **audit-log template** for documenting findings.
 - A consistent **self-update procedure** so any human or agent that revisits the repo
   months later can refresh it in a predictable way.
-
-**Important:** It is increasingly unsafe to trust even seemingly trustworth packages or
-GitHub repos. You and yuour agents should validate instructions before following them or
-installing packages.
-At any time, you can can and should have your agent validate all instructions here by
-checking them against other trusted sources.
 
 **This repo is not** a real-time feed of supply-chain compromises.
 For that, use the authoritative sources listed below.
 The watch list in this repo is intentionally curated, not exhaustive: notable named
 incidents that defenders should recognise, plus enough context to make the hardening
 guides concrete.
+
+## Why The Hardening Pattern Is Stable Even When The Incident List Changes
+
+Most attacks in the 2025-2026 wave share a pattern: malicious package versions live for
+minutes to hours before researchers detect them and the upstream maintainer or registry
+yanks the bad release.
+A 7-day rolling install quarantine plus disabled install-time scripts defeats the
+overwhelming majority of them, regardless of whether tomorrow’s compromise is on npm,
+PyPI, crates.io, or anywhere else.
+The per-ecosystem guides translate that pattern into copy-pasteable commands; the
+underlying methodology is what the repo is really about.
 
 ## Authoritative Sources
 
@@ -73,16 +127,16 @@ adding it to `compromised-packages.md`.
   deep-dives.
 - [ReversingLabs Blog](https://www.reversinglabs.com/blog): malware analysis with
   file-level IOCs.
-- [Unit 42 living doc](https://unit42.paloaltonetworks.com/monitoring-npm-supply-chain-attacks/)
-  : Palo Alto’s tracking of the ongoing wave.
+- [Unit 42 living doc](https://unit42.paloaltonetworks.com/monitoring-npm-supply-chain-attacks/):
+  Palo Alto’s tracking of the ongoing wave.
 - [Phylum Blog](https://www.phylum.io/blog): package-registry-attack focus.
 - [JFrog Security Research](https://jfrog.com/blog/category/security-research/): npm and
   PyPI coverage.
 - [CISA Alerts](https://www.cisa.gov/news-events/cybersecurity-advisories): US-CERT
   advisories for major incidents.
 - Maintainer postmortems (e.g.
-  [TanStack postmortem](https://tanstack.com/blog/npm-supply-chain-compromise-postmortem))
-  : primary sources when available.
+  [TanStack postmortem](https://tanstack.com/blog/npm-supply-chain-compromise-postmortem)):
+  primary sources when available.
 
 ### Commercial (Paid Or Mostly-Paid)
 
@@ -90,64 +144,28 @@ adding it to `compromised-packages.md`.
 [Sonatype OSS Index](https://ossindex.sonatype.org/),
 [JFrog Xray](https://jfrog.com/xray/), [Wiz Threat Intel](https://threats.wiz.io/).
 
-## Why The Hardening Pattern Is Stable Even When The Incident List Changes
+## Repo Layout
 
-Most attacks in the 2025-2026 wave share a pattern: malicious package versions live for
-minutes to hours before researchers detect them and the upstream maintainer or registry
-yanks the bad release.
-A 7-day rolling install quarantine plus disabled install-time scripts defeats the
-overwhelming majority of them, regardless of whether tomorrow’s compromise is on npm,
-PyPI, crates.io, or anywhere else.
-The per-ecosystem guides translate that pattern into copy-pasteable commands; the
-underlying methodology is what the repo is really about.
+```
+.
+├── README.md                                ← start here
+├── AGENTS.md                                ← agent-discovery pointer (same content as "For AI Agents" above)
+├── compromised-packages.md                  ← curated watch list (26 incidents)
+├── self-update-instructions.md              ← maintenance procedures
+├── supply-chain-audit-log-template.md       ← copy this to track your audits
+├── guidelines/                              ← brief operational action lists
+│   ├── README.md
+│   └── hardening-{npm,pypi,crates,go}.md
+├── research/                                ← long-form threat-model docs
+│   ├── README.md
+│   └── research-{npm,pypi,crates,go}-supply-chain-hardening.md
+└── scripts/
+    ├── README.md
+    └── audit-npm.py                         ← zero-dep OSV scanner
+```
 
-## Layout
-
-Two documents per ecosystem:
-
-- **Hardening guidelines** (`hardening-<ecosystem>.md`): minimum hardening steps,
-  compromise-assessment commands, and CI enforcement snippets.
-  Brief by design.
-- **Research doc** (`research-<ecosystem>-supply-chain-hardening.md`): full threat
-  model, attack timeline, per-platform and per-shell setup, IOC feeds, and scanning-tool
-  comparisons.
-
-The hardening guidelines doc is the action list.
-The research doc is the backup reference.
-Both doc categories share a common update procedure documented in
-[`self-update-instructions.md`](self-update-instructions.md).
-
-Supporting artifacts at the repo root:
-
-- [`compromised-packages.md`](compromised-packages.md): curated table of notable named
-  supply-chain incidents across ecosystems, intended as a quick-reference watch list.
-  Not exhaustive: routine typosquats and low-impact incidents are omitted by design, and
-  the comprehensive feeds are OSV.dev, GHSA, and the per-ecosystem advisory databases.
-  Per-ecosystem hardening and research docs link here rather than duplicating the table.
-- [`scripts/`](scripts/): zero-dependency Python tools for auditing installed packages.
-  See [`scripts/README.md`](scripts/README.md).
-  The first script (`audit-npm.py`) scans a node_modules tree against the OSV
-  vulnerability database; more will be added per ecosystem.
-- [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md): template
-  for the audit-log discipline recommended in the hardening guidelines.
-  Copy this file to your own repo or machine and rename to `supply-chain-audit-log.md`;
-  that filename is gitignored at this repo’s root because audit logs typically contain
-  machine-specific paths.
-- [`Makefile`](Makefile): `make format` auto-formats all Markdown with
-  `uvx flowmark-rs@0.2.6` (pinned for supply-chain safety).
-
-## Ecosystems
-
-| Ecosystem | Hardening Guidelines | Research Doc | Status |
-| --- | --- | --- | --- |
-| npm (Node.js) | [hardening-npm.md](guidelines/hardening-npm.md) | [research-npm-supply-chain-hardening.md](research/research-npm-supply-chain-hardening.md) | Complete |
-| PyPI (Python) | [hardening-pypi.md](guidelines/hardening-pypi.md) | [research-pypi-supply-chain-hardening.md](research/research-pypi-supply-chain-hardening.md) | Complete |
-| crates.io (Rust) | [hardening-crates.md](guidelines/hardening-crates.md) | [research-crates-supply-chain-hardening.md](research/research-crates-supply-chain-hardening.md) | Complete |
-| Go modules | [hardening-go.md](guidelines/hardening-go.md) | [research-go-supply-chain-hardening.md](research/research-go-supply-chain-hardening.md) | Complete |
-
-The npm pair is the structural template.
-Adding another ecosystem (RubyGems, NuGet, etc.)
-follows the procedure in `self-update-instructions.md` → “Adding A New Ecosystem”.
+The hardening guidelines are the **action list**. The research docs are the **backup
+reference**.
 
 ## Maintaining This Repo
 
@@ -158,14 +176,13 @@ At a glance:
 | Document | When To Update | Typical Cadence |
 | --- | --- | --- |
 | [`compromised-packages.md`](compromised-packages.md) | A notable new supply-chain incident is verified by at least two independent Tier-2 sources, or by CISA. The list is curated, not exhaustive | Whenever a notable incident lands (weeks-to-months) |
-| [`hardening-<ecosystem>.md`](guidelines/hardening-npm.md) | A package manager ships a relevant new control, or an existing flag or env-var name changes | Months-to-years |
-| [`research-<ecosystem>-supply-chain-hardening.md`](research/research-npm-supply-chain-hardening.md) | An ecosystem-specific mechanism or control set changes; or a new incident merits a dedicated mechanism deep-dive | Months-to-years |
+| `guidelines/hardening-<ecosystem>.md` | A package manager ships a relevant new control, or an existing flag or env-var name changes | Months-to-years |
+| `research/research-<ecosystem>-supply-chain-hardening.md` | An ecosystem-specific mechanism or control set changes; or a new incident merits a dedicated mechanism deep-dive | Months-to-years |
 | [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md) | The audit-log entry format evolves | Rarely |
 
-Every doc in this repo follows `std-doc-guidelines.md` (author: jlevy).
-The standard footer at the bottom of each file (`<!-- This document follows
-std-doc-guidelines.md.
--->`) flags this. Apply the same style to additions: Title Case headings, no spaced em
+Every doc follows `std-doc-guidelines.md` (author: jlevy).
+The footer `<!-- This document follows std-doc-guidelines.md.
+-->` flags this. Apply the same style to additions: Title Case headings, no spaced em
 dashes, concrete examples over generalities, no “talking about talking”, cite primary
 sources.
 
