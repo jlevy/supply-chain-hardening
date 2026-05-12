@@ -1,8 +1,7 @@
-# Supply Chain Hardening
+# Supply Chain Hardening Guidebook
 
-**Supply-chain hardening guidebook for AI agents and developers.** Concrete recipes,
-zero-dep audit scripts, and a curated watch list of recent compromises across npm, PyPI,
-crates.io, and Go modules.
+**For AI agents and developers.** Concrete recipes, zero-dep audit scripts, and a
+curated watch list of recent compromises across npm, PyPI, crates.io, and Go modules.
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance\
 **Last updated:** 2026-05-12
