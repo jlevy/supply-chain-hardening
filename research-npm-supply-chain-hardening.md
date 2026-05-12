@@ -600,26 +600,7 @@ Some, including anything that uses postinstall to set up symlinks or download bi
 
 This is a living document. The threat landscape changes on a weeks-to-months cadence; the protections (env-var pattern, IOC feeds, scanner tools) change on a months-to-years cadence. Maintain Part 2 (notable exploits) more aggressively than Parts 1 or 3.
 
-### When To Update
-
-1. A new named npm supply-chain attack is publicly reported by ≥2 of the Tier-2 feeds, or by CISA.
-2. A new pnpm/npm/yarn/bun release adds a relevant control (for example, when npm gains `minimumReleaseAge`, update the coverage matrix).
-3. A new authoritative IOC feed launches, or an existing one shuts down or changes its URL.
-4. A new scanner tool sees broad adoption and would be a Tier-1 recommendation.
-
-### How To Update (Agent Instructions)
-
-1. Read the entire document first. Don't patch in isolation; Part 2 (the exploits table) and the IOC-feed section reference each other.
-2. Verify the new event with at least two independent sources from Tier 2 (Aikido, StepSecurity, Unit 42, Socket, Datadog). Do not add unverified rumors or single-source claims.
-3. Add a row to the Part 2 exploits table in chronological order. Include date, name, scale, affected packages, vector. Use the same column structure.
-4. Update the "Last updated" date in the header.
-5. Refresh URLs annually. Click through each IOC-feed URL once a year to catch dead links. Replace, do not delete.
-6. Cross-reference any new control in the coverage matrix. If npm gains `minimumReleaseAge`, flip the cell and remove the "✗ (warns and ignores)" note.
-7. Update the trend-line note in Part 2 if the cadence changes meaningfully.
-
-### Suggested Prompt For Refreshing The Document
-
-> Update `research-npm-supply-chain-hardening.md` for the [name] incident on [date]. Follow the "How To Update" procedure above. Verify with at least two Tier-2 sources before writing. Bump the "Last updated" date.
+Procedures, citation rules, and suggested agent prompts are in [`self-update-instructions.md`](self-update-instructions.md) → "Updating Research Docs".
 
 ---
 
