@@ -6,6 +6,10 @@ working in this repo.
 **Read [`README.md`](README.md) first** for the full project context.
 This file is a fast-path index for the most common agent intents.
 
+For a **portable, drop-in version of the install rules** that you can copy into any
+codebase (and reference from that codebase’s own `AGENTS.md`), see
+[`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md).
+
 ## Common Intents
 
 | User Intent | Read This | Then Do This |

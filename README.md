@@ -51,6 +51,14 @@ For an agent or human walking through every ecosystem on a workstation, in order
 The long-form companions live in [`research/`](research/): threat model, attack
 timeline, per-shell setup detail, and severity assessment per ecosystem.
 
+### Drop A Reminder Into Your Own Codebase
+
+[`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md) is a self-contained, portable
+version of the install rules (no newer than 7 days, no unthinking installs, audit after
+every install, link back here for detail).
+Copy it to your own project root and reference it from your project’s `AGENTS.md` so any
+AI agent working in your codebase sees the rules before installing anything.
+
 ## For AI Agents
 
 When the user asks you to harden, audit, or assess a package-manager supply chain:
