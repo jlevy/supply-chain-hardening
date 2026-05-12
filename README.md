@@ -71,10 +71,11 @@ IDEs and agents that auto-load that filename.
 
 ## Safety Note
 
-It is increasingly unsafe to trust even seemingly trustworthy packages or GitHub repos.
-Validate instructions before following them and validate packages before installing
-them. Have your agent cross-check every recipe in this repo against the
-[Authoritative Sources](#authoritative-sources).
+> [!WARNING]
+> It is increasingly unsafe to trust even seemingly trustworthy packages or GitHub
+> repos. Validate instructions before following them, and validate packages before
+> installing them. Have your agent cross-check every recipe in this repo against the
+> [Authoritative Sources](#authoritative-sources).
 
 ## What This Repo Is (And Is Not)
 
