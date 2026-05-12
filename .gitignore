@@ -1,3 +1,12 @@
+# Real audit logs typically contain machine-specific paths, installed-package
+# versions tied to a single developer's tooling, and similar local details.
+# Keep them out of the shared repo. See supply-chain-audit-log-template.md for
+# the format to copy.
+supply-chain-audit-log.md
+
+# Rough notes, scratchpads, exploration artifacts that should not be committed.
+tmp/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

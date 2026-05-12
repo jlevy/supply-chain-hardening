@@ -1,0 +1,6 @@
+# Directories managed by tooling (tbd, Claude Code) — do not reformat.
+.tbd/
+.claude/
+
+# Rough notes and scratchpads — preserve original formatting.
+tmp/
