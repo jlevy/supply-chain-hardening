@@ -7,7 +7,7 @@
 The minimum action list to harden a workstation or CI runner against the 2025-2026 npm
 supply-chain attack wave, and to check whether you have already been compromised.
 Full threat model, per-platform setup, IOC feeds, and scanning tools in
-[research-npm-supply-chain-hardening.md](research-npm-supply-chain-hardening.md).
+[research-npm-supply-chain-hardening.md](../research/research-npm-supply-chain-hardening.md).
 
 ## Hardening (Ten-Minute Setup)
 
@@ -37,7 +37,7 @@ export NPM_CONFIG_FROZEN_LOCKFILE=true
 
 Pick the line for every shell you use.
 Detail on each in
-[research-npm-supply-chain-hardening.md](research-npm-supply-chain-hardening.md#part-3-best-practices-for-hardening).
+[research-npm-supply-chain-hardening.md](../research/research-npm-supply-chain-hardening.md#part-3-best-practices-for-hardening).
 
 - **zsh** (any OS): add to `~/.zshenv`
   `[ -r "$HOME/.npm-hardening.sh" ] && . "$HOME/.npm-hardening.sh"`
@@ -52,10 +52,10 @@ Detail on each in
   set -gx NPM_CONFIG_FROZEN_LOCKFILE true
   ```
 - **Windows PowerShell**: add to `$PROFILE` (see
-  [research-npm-supply-chain-hardening.md](research-npm-supply-chain-hardening.md#powershell-7-pwsh)).
+  [research-npm-supply-chain-hardening.md](../research/research-npm-supply-chain-hardening.md#powershell-7-pwsh)).
 - **Linux systemd user environment**: put in
   `~/.config/environment.d/npm-hardening.conf` (see
-  [research-npm-supply-chain-hardening.md](research-npm-supply-chain-hardening.md#systemd-user-environment-linux-specific)).
+  [research-npm-supply-chain-hardening.md](../research/research-npm-supply-chain-hardening.md#systemd-user-environment-linux-specific)).
 
 ### Step 3: Verify
 
@@ -108,13 +108,13 @@ python3 scripts/audit-npm.py
 uv run scripts/audit-npm.py --packages chalk@5.6.1 debug@4.4.2
 ```
 
-See [scripts/README.md](scripts/README.md) for full usage, exit codes, and the rationale
-for using a Python-stdlib script rather than a Node-based one.
+See [scripts/README.md](../scripts/README.md) for full usage, exit codes, and the
+rationale for using a Python-stdlib script rather than a Node-based one.
 
 ### Step 2: Grep For Known IOCs From The Most Recent Named Attacks
 
 The most relevant attacks as of 2026-05-12. Canonical full list (cross-ecosystem) is in
-[`compromised-packages.md`](compromised-packages.md); this is the npm quick-grep
+[`compromised-packages.md`](../compromised-packages.md); this is the npm quick-grep
 extract:
 
 | Date | Name | Quick IOC Pattern |
@@ -175,7 +175,7 @@ Maintain a file named `supply-chain-audit-log.md` in one of two locations:
 - **In a project repo** (recommended for shared-project audits): tracks audits of that
   project’s lockfiles.
 
-Start from the [template](supply-chain-audit-log-template.md) in this repository.
+Start from the [template](../supply-chain-audit-log-template.md) in this repository.
 The template is committed; `supply-chain-audit-log.md` itself is gitignored at this
 repo’s root because real audit logs typically contain machine-specific paths, package
 versions tied to a single developer’s tooling, and similar details that should not be
@@ -264,7 +264,7 @@ jobs:
 ```
 
 Other CI: see
-[research-npm-supply-chain-hardening.md](research-npm-supply-chain-hardening.md#setup-ci-runners)
+[research-npm-supply-chain-hardening.md](../research/research-npm-supply-chain-hardening.md#setup-ci-runners)
 for GitLab, CircleCI, Buildkite, Jenkins.
 
 ## Subscribe-And-Watch Feeds

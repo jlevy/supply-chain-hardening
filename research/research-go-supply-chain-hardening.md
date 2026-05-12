@@ -16,7 +16,7 @@ The doc has three parts:
 2. **Notable Exploits**: the named incidents, with affected modules and dates so you can
    spot-check installed `go.mod` files.
    The canonical cross-ecosystem table is in
-   [`compromised-packages.md`](compromised-packages.md); this section provides
+   [`compromised-packages.md`](../compromised-packages.md); this section provides
    Go-ecosystem context, not a duplicate.
 3. **Best Practices for Hardening**: copy-pasteable configuration for the `go`
    toolchain, broken out by platform and shell.
@@ -186,7 +186,7 @@ incidents, but the urgency is qualitatively different from the npm or PyPI ecosy
 # Part 2: Notable Exploits To Be Aware Of
 
 The canonical cross-ecosystem table of named supply-chain incidents lives in
-[`compromised-packages.md`](compromised-packages.md).
+[`compromised-packages.md`](../compromised-packages.md).
 Filter to `Ecosystem = Go` for the rows relevant to this guide.
 New rows go there first; this section does not duplicate them.
 
@@ -753,7 +753,8 @@ hardening controls (env vars, checksum database, scanning tools) change rarely.
 Maintain Part 2 (notable exploits) more aggressively than Parts 1 or 3.
 
 Procedures, citation rules, and suggested agent prompts are in
-[`self-update-instructions.md`](self-update-instructions.md) → “Updating Research Docs”.
+[`self-update-instructions.md`](../self-update-instructions.md) → “Updating Research
+Docs”.
 
 * * *
 

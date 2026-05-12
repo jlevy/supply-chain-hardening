@@ -2,8 +2,6 @@
 
 **Last updated:** 2026-05-12
 
-**Author:** Joshua Levy (github.com/jlevy) and LLM assistance
-
 **Supply-chain hardening guidebook for AI agents and developers.** Concrete recipes,
 zero-dep audit scripts, and a curated watch list of recent compromises across npm, PyPI,
 crates.io, and Go modules.
@@ -135,10 +133,10 @@ Supporting artifacts at the repo root:
 
 | Ecosystem | Hardening Guidelines | Research Doc | Status |
 | --- | --- | --- | --- |
-| npm (Node.js) | [hardening-npm.md](hardening-npm.md) | [research-npm-supply-chain-hardening.md](research-npm-supply-chain-hardening.md) | Complete |
-| PyPI (Python) | [hardening-pypi.md](hardening-pypi.md) | [research-pypi-supply-chain-hardening.md](research-pypi-supply-chain-hardening.md) | Complete |
-| crates.io (Rust) | [hardening-crates.md](hardening-crates.md) | [research-crates-supply-chain-hardening.md](research-crates-supply-chain-hardening.md) | Complete |
-| Go modules | [hardening-go.md](hardening-go.md) | [research-go-supply-chain-hardening.md](research-go-supply-chain-hardening.md) | Complete |
+| npm (Node.js) | [hardening-npm.md](guidelines/hardening-npm.md) | [research-npm-supply-chain-hardening.md](research/research-npm-supply-chain-hardening.md) | Complete |
+| PyPI (Python) | [hardening-pypi.md](guidelines/hardening-pypi.md) | [research-pypi-supply-chain-hardening.md](research/research-pypi-supply-chain-hardening.md) | Complete |
+| crates.io (Rust) | [hardening-crates.md](guidelines/hardening-crates.md) | [research-crates-supply-chain-hardening.md](research/research-crates-supply-chain-hardening.md) | Complete |
+| Go modules | [hardening-go.md](guidelines/hardening-go.md) | [research-go-supply-chain-hardening.md](research/research-go-supply-chain-hardening.md) | Complete |
 
 The npm pair is the structural template.
 Adding another ecosystem (RubyGems, NuGet, etc.)
@@ -153,8 +151,8 @@ At a glance:
 | Document | When To Update | Typical Cadence |
 | --- | --- | --- |
 | [`compromised-packages.md`](compromised-packages.md) | A notable new supply-chain incident is verified by at least two independent Tier-2 sources, or by CISA. The list is curated, not exhaustive | Whenever a notable incident lands (weeks-to-months) |
-| [`hardening-<ecosystem>.md`](hardening-npm.md) | A package manager ships a relevant new control, or an existing flag or env-var name changes | Months-to-years |
-| [`research-<ecosystem>-supply-chain-hardening.md`](research-npm-supply-chain-hardening.md) | An ecosystem-specific mechanism or control set changes; or a new incident merits a dedicated mechanism deep-dive | Months-to-years |
+| [`hardening-<ecosystem>.md`](guidelines/hardening-npm.md) | A package manager ships a relevant new control, or an existing flag or env-var name changes | Months-to-years |
+| [`research-<ecosystem>-supply-chain-hardening.md`](research/research-npm-supply-chain-hardening.md) | An ecosystem-specific mechanism or control set changes; or a new incident merits a dedicated mechanism deep-dive | Months-to-years |
 | [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md) | The audit-log entry format evolves | Rarely |
 
 Every doc in this repo follows `std-doc-guidelines.md` (author: jlevy).

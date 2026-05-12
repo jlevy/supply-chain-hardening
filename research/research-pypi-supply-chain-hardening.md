@@ -114,7 +114,7 @@ Several differences affect hardening strategy:
 # Part 2: Notable Exploits To Be Aware Of
 
 The canonical cross-ecosystem table of named supply-chain incidents lives in
-[`compromised-packages.md`](compromised-packages.md).
+[`compromised-packages.md`](../compromised-packages.md).
 Filter to `Ecosystem = PyPI` for the rows relevant to this guide.
 New rows go there first; this section does not duplicate them.
 
@@ -857,7 +857,7 @@ pattern, IOC feeds, scanner tools) change on a months-to-years cadence.
 Maintain Part 2 (notable exploits) more aggressively than Parts 1 or 3.
 
 Procedures, citation rules, and suggested agent prompts are in
-[`self-update-instructions.md`](self-update-instructions.md) -> “Updating Research
+[`self-update-instructions.md`](../self-update-instructions.md) -> “Updating Research
 Docs”.
 
 * * *

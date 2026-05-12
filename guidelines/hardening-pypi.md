@@ -7,7 +7,7 @@
 The minimum action list to harden a workstation or CI runner against PyPI supply-chain
 attacks, and to check whether you have already been compromised.
 Full threat model, per-platform setup, IOC feeds, and scanning tools in
-[research-pypi-supply-chain-hardening.md](research-pypi-supply-chain-hardening.md).
+[research-pypi-supply-chain-hardening.md](../research/research-pypi-supply-chain-hardening.md).
 
 ## Hardening (Ten-Minute Setup)
 
@@ -32,7 +32,7 @@ export PIP_UPLOADED_PRIOR_TO="P7D"
 
 Pick the line for every shell you use.
 Detail on each in
-[research-pypi-supply-chain-hardening.md](research-pypi-supply-chain-hardening.md#part-3-best-practices-for-hardening).
+[research-pypi-supply-chain-hardening.md](../research/research-pypi-supply-chain-hardening.md#part-3-best-practices-for-hardening).
 
 - **zsh** (any OS): add to `~/.zshenv`
   `[ -r "$HOME/.pypi-hardening.sh" ] && . "$HOME/.pypi-hardening.sh"`
@@ -47,7 +47,7 @@ Detail on each in
   set -gx PIP_UPLOADED_PRIOR_TO "P7D"
   ```
 - **Windows PowerShell**: add to `$PROFILE` (see
-  [research-pypi-supply-chain-hardening.md](research-pypi-supply-chain-hardening.md#powershell-7-pwsh)).
+  [research-pypi-supply-chain-hardening.md](../research/research-pypi-supply-chain-hardening.md#powershell-7-pwsh)).
 
 ### Step 3: Verify
 
@@ -85,7 +85,7 @@ pip-audit
 ### Step 2: Grep For Known IOCs From The Most Recent Named Attacks
 
 The most relevant PyPI attacks as of 2026-05-12. The cross-ecosystem table is in
-[`compromised-packages.md`](compromised-packages.md); this is the PyPI quick-grep
+[`compromised-packages.md`](../compromised-packages.md); this is the PyPI quick-grep
 extract:
 
 | Date | Name | Quick IOC Pattern |
@@ -123,7 +123,7 @@ done
 
 Follow the same audit-log discipline described in
 [hardening-npm.md](hardening-npm.md#keeping-a-supply-chain-audit-log).
-Start from the [template](supply-chain-audit-log-template.md) in this repository.
+Start from the [template](../supply-chain-audit-log-template.md) in this repository.
 
 ## CI Enforcement
 
@@ -148,7 +148,7 @@ jobs:
 ```
 
 Other CI: see
-[research-pypi-supply-chain-hardening.md](research-pypi-supply-chain-hardening.md#setup-ci-runners)
+[research-pypi-supply-chain-hardening.md](../research/research-pypi-supply-chain-hardening.md#setup-ci-runners)
 for GitLab, CircleCI, Buildkite, Jenkins.
 
 ## Subscribe-And-Watch Feeds

@@ -141,7 +141,7 @@ Across the confirmed crates.io incidents, the pattern is narrower than in npm:
 # Part 2: Notable Exploits To Be Aware Of
 
 The canonical cross-ecosystem table of named supply-chain incidents lives in
-[`compromised-packages.md`](compromised-packages.md).
+[`compromised-packages.md`](../compromised-packages.md).
 Filter to `Ecosystem = crates.io` for the rows relevant to this guide.
 New rows go there first; this section does not duplicate them.
 
@@ -565,7 +565,7 @@ These are different attack surfaces:
   the crate. Rotate crates.io tokens, GitHub tokens, SSH keys, cloud credentials.
 - [ ] Remove the dependency, regenerate `Cargo.lock`, rebuild.
 - [ ] Open an audit-log entry per
-  [hardening-npm.md](hardening-npm.md#keeping-a-supply-chain-audit-log).
+  [hardening-npm.md](../guidelines/hardening-npm.md#keeping-a-supply-chain-audit-log).
 
 ## Updating This Document
 
@@ -574,7 +574,7 @@ The threat landscape for crates.io changes on a months-to-quarters cadence.
 Maintain Part 2 (notable exploits) more aggressively than Parts 1 or 3.
 
 Procedures, citation rules, and suggested agent prompts are in
-[`self-update-instructions.md`](self-update-instructions.md) -> “Updating Research
+[`self-update-instructions.md`](../self-update-instructions.md) -> “Updating Research
 Docs”.
 
 * * *
