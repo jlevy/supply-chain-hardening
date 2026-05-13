@@ -42,9 +42,13 @@ python3 scripts/audit_npm.py
 Exit codes:
 
 - `0`: no OSV-known advisories found.
-- `1`: one or more advisories found (inspect output for `[MALICIOUS]` tag vs ordinary
-  CVE).
-- `2`: error (network failure, invalid arguments, missing target).
+- `1`: one or more ordinary CVE advisories found (no `MAL-*` IDs).
+- `2`: error (network failure after retries, invalid arguments, missing target).
+- `3`: one or more malicious-package advisories found (at least one `MAL-*` ID).
+
+The script retries OSV requests with bounded exponential backoff (up to 4 attempts,
+initial delay 1s, doubling) on HTTP 408 / 429 / 5xx and on transient network errors, so
+brief OSV-side outages do not surface as exit 2.
 
 Output format (text mode):
 

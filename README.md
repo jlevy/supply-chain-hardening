@@ -94,6 +94,14 @@ IDEs and agents that auto-load that filename.
   configuration.
 - Per-ecosystem **research docs** in [`research/`](research/) explaining the threat
   model, attack mechanisms, and defensive trade-offs.
+- A **layered security model** at [`SECURITY_MODEL.md`](SECURITY_MODEL.md) describing
+  how developer defaults, project policy, CI, registry/proxy, sandbox, and incident
+  response fit together.
+- A **strict-mode reference** at
+  [`guidelines/strict-mode.md`](guidelines/strict-mode.md) for agents and high-risk
+  environments, plus an
+  [untrusted-repo sandbox procedure](guidelines/untrusted-repo-first-run.md) for the
+  first run of any third-party code.
 - A **curated watch list** at [`compromised-packages.md`](compromised-packages.md) for
   spot-checking installed packages and recognising attack patterns by name.
 - A **zero-dependency audit script** at [`scripts/audit_npm.py`](scripts/audit_npm.py)
@@ -110,18 +118,43 @@ recognise, plus enough context to make the hardening guides concrete.
 
 ## Why The Hardening Pattern Is Stable Even When The Incident List Changes
 
-Most attacks in the 2025-2026 wave share a pattern: malicious package versions live for
-minutes to hours before researchers detect them and the upstream maintainer or registry
-yanks the bad release.
-A 7-day rolling install quarantine plus disabled install-time scripts defeats most of
-them, regardless of whether tomorrow’s compromise is on npm, PyPI, crates.io, or
-somewhere else. The playbooks translate that pattern into copy-pasteable commands; the
-methodology is what the repo is really about.
+The dominant pattern in the 2025-2026 wave is fast-yanked named incidents: malicious
+package versions live for minutes to hours before researchers detect them and the
+maintainer or registry yanks the bad release (qix, Shai-Hulud 1.0/2.0, Axios, TanStack,
+Ultralytics, LiteLLM, Mini Shai-Hulud).
+
+**Core pattern:** delay newly-published versions where the package manager supports it;
+otherwise prevent unintentional re-resolution, pin exact versions, verify checksums and
+advisories, and require explicit human review for dependency updates.
+
+| Ecosystem | Native release-age gating | Primary protection |
+| --- | --- | --- |
+| npm / pnpm | yes (`NPM_CONFIG_BEFORE`, `MINIMUM_RELEASE_AGE` on pnpm 10.16+, `MIN_RELEASE_AGE` on npm 11.10+) | release-age delay + disabled install scripts + frozen lockfile |
+| PyPI (uv, pip 26.1+, poetry 2.4+, pdm) | yes (`UV_EXCLUDE_NEWER`, `PIP_UPLOADED_PRIOR_TO`, `solver.min-release-age`, `--exclude-newer`) | release-age delay + refuse sdist builds + frozen lockfile with hashes |
+| Cargo (crates.io) | no native release-age control | committed `Cargo.lock` + `--locked` + `cargo audit`/`deny`/`vet` |
+| Go modules | no native release-age control | committed `go.sum` + `go mod verify` + `govulncheck` + readonly module mode |
+
+For Cargo and Go, “cool-off” can still be implemented through Renovate/Dependabot
+policy, internal mirrors, or update wrappers, but it is not a flag the toolchain
+exposes. The playbooks translate the per-ecosystem pattern into copy-pasteable commands;
+the methodology is what the repo is really about.
+
+**What this neutralises:** the fast-yanked named incidents above.
+**What it does not neutralise on its own:** long-lived compromises that survive past the
+cool-off window (BoltDB cached in the module proxy for ~3 years; ctx ATO published for
+~10 days), lockfiles that already captured a malicious version before the control was
+active, and runtime payloads in wheels or proc-macros that execute on import or build
+rather than at install time.
+Those require additional controls: lockfile review, typo-resistance checks, and the
+per-ecosystem build-time controls in the playbooks.
 
 ## Maintaining This Repo
 
 All doc-update procedures live in
 [`self-update-instructions.md`](self-update-instructions.md).
+The package-manager versions the playbooks have been validated against, and the
+re-verification procedure for major-version bumps, live in
+[`MAINTENANCE.md`](MAINTENANCE.md).
 At a glance:
 
 | Document | When To Update | Typical Cadence |

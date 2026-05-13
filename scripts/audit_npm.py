@@ -27,8 +27,13 @@
 #
 # Exit codes:
 #     0  no OSV-matched vulnerabilities found
-#     1  one or more vulnerabilities found (inspect output)
+#     1  one or more ordinary CVE advisories found (no MAL-* IDs)
 #     2  error (network failure, invalid arguments, missing target)
+#     3  one or more malicious-package advisories found (MAL-* ID)
+#
+# Exit 3 is reserved for the strictest signal: OSV's dedicated malicious-package
+# corpus matched something installed. CI jobs should typically fail-loud on 3 and
+# may want to treat 1 differently from 3 in alerting.
 
 from __future__ import annotations
 
@@ -36,6 +41,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -46,6 +52,9 @@ OSV_BATCH_URL = "https://api.osv.dev/v1/querybatch"
 OSV_VULN_URL = "https://api.osv.dev/v1/vulns"
 BATCH_SIZE = 1000  # OSV /querybatch supports large batches; 1000 is conservative
 FETCH_TIMEOUT_SECONDS = 30
+HTTP_RETRY_ATTEMPTS = 4         # initial try plus 3 retries
+HTTP_RETRY_INITIAL_DELAY = 1.0  # seconds; doubles per retry (1s, 2s, 4s)
+RETRYABLE_HTTP_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
 
 
 # ---------------------------------------------------------------------------
@@ -158,8 +167,33 @@ def dedupe_packages(packages: list[Package]) -> list[Package]:
 # OSV queries
 # ---------------------------------------------------------------------------
 
+def _request_with_retry(request: urllib.request.Request) -> dict[str, Any]:
+    """
+    Issue an HTTP request with bounded exponential backoff on transient failures.
+    Retries on 408/429/5xx HTTP statuses and on URLError. Other 4xx are returned
+    immediately by raising.
+    """
+    delay = HTTP_RETRY_INITIAL_DELAY
+    last_err: Exception | None = None
+    for attempt in range(HTTP_RETRY_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as err:
+            last_err = err
+            if err.code not in RETRYABLE_HTTP_STATUSES:
+                raise
+        except urllib.error.URLError as err:
+            last_err = err
+        if attempt < HTTP_RETRY_ATTEMPTS - 1:
+            time.sleep(delay)
+            delay *= 2
+    assert last_err is not None
+    raise last_err
+
+
 def http_post_json(url: str, body: dict[str, Any]) -> dict[str, Any]:
-    """POST a JSON body and return the parsed JSON response. Raises on error."""
+    """POST a JSON body and return the parsed JSON response. Retries on transient errors."""
     payload = json.dumps(body).encode("utf-8")
     request = urllib.request.Request(
         url,
@@ -167,15 +201,13 @@ def http_post_json(url: str, body: dict[str, Any]) -> dict[str, Any]:
         headers={"content-type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
-        return json.loads(response.read().decode("utf-8"))
+    return _request_with_retry(request)
 
 
 def http_get_json(url: str) -> dict[str, Any]:
-    """GET a JSON resource and return the parsed JSON response. Raises on error."""
+    """GET a JSON resource and return the parsed JSON response. Retries on transient errors."""
     request = urllib.request.Request(url, method="GET")
-    with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
-        return json.loads(response.read().decode("utf-8"))
+    return _request_with_retry(request)
 
 
 def batch_query_osv(packages: list[Package]) -> list[list[str]]:
@@ -319,7 +351,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "  uv run scripts/audit-npm.py --node-modules ./node_modules\n"
             "  uv run scripts/audit-npm.py --packages chalk@5.6.1 debug@4.4.2\n"
             "  uv run scripts/audit-npm.py --json > audit.json\n\n"
-            "Exit codes: 0 clean, 1 hits found, 2 error."
+            "Exit codes: 0 clean, 1 CVE hits, 2 error, 3 malicious-package hits."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -437,7 +469,10 @@ def main(argv: list[str]) -> int:
     else:
         print(format_text_report(hits, len(packages), target_description))
 
-    return 1 if hits else 0
+    if not hits:
+        return 0
+    has_malicious = any(any(is_malicious(v) for v in h.vulns) for h in hits)
+    return 3 if has_malicious else 1
 
 
 if __name__ == "__main__":

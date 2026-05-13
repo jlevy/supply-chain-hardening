@@ -1,0 +1,51 @@
+# Allow-list of package-manager-specific environment variables that appear
+# in this repo's documentation. tests/validate-docs.py greps the markdown
+# under guidelines/, research/, AGENTS.md, SUPPLY-CHAIN-SECURITY.md,
+# README.md, and SECURITY_MODEL.md for tokens matching the package-manager
+# env-var conventions (NPM_CONFIG_*, PIP_*, UV_*, CARGO_*, GO* with
+# specific names) and flags anything not in this list.
+#
+# Update when a new env var is genuinely introduced. Leave a comment on
+# the row noting the package-manager version that introduced it so the
+# maintenance checklist can re-verify on major bumps.
+
+# --- npm / pnpm ---
+NPM_CONFIG_BEFORE                      # npm + pnpm; absolute ISO 8601 date
+NPM_CONFIG_MIN_RELEASE_AGE             # npm 11.10+; days (integer)
+NPM_CONFIG_MINIMUM_RELEASE_AGE         # pnpm 10.16.0+; minutes (integer)
+NPM_CONFIG_IGNORE_SCRIPTS              # npm + pnpm; disables lifecycle scripts
+NPM_CONFIG_FROZEN_LOCKFILE             # pnpm; refuse mutating installs
+NPM_CONFIG_STRICT_DEP_BUILDS           # pnpm 10.16+; fail on unreviewed build scripts
+
+# --- PyPI / pip / uv ---
+PIP_ONLY_BINARY                        # pip; --only-binary equivalent
+PIP_UPLOADED_PRIOR_TO                  # pip 26.1+; ISO 8601 duration or absolute timestamp
+PIP_CONFIG_FILE                        # pip; overrides config-file lookup
+PIP_EXTRA_INDEX_URL                    # pip; DANGEROUS for private packages (dep confusion)
+UV_EXCLUDE_NEWER                       # uv; accepts friendly durations like "7 days"
+UV_NO_BUILD                            # uv; equivalent of --no-build (refuses sdists)
+UV_NO_BINARY                           # uv; equivalent of --no-binary (forces source builds)
+
+# --- Rust / Cargo ---
+CARGO_BUILD_LOCKED                     # Cargo; equivalent of --locked for cargo build
+CARGO_AUDIT_VERSION                    # CI-only convention used in this repo's examples
+CARGO_DENY_VERSION                     # CI-only convention used in this repo's examples
+
+# --- PyPI CI-only conventions ---
+PIP_AUDIT_VERSION                      # CI-only convention used in this repo's examples
+
+# --- Documented-as-not-supported (referenced only to warn against use) ---
+UV_ONLY_BINARY                         # NOT a real uv env var; docs reference it to
+                                       # warn readers that the equivalent is UV_NO_BUILD
+                                       # (env) or only-binary in [tool.uv.pip] config.
+
+# --- Go ---
+GOPROXY                                # Go module proxy
+GOSUMDB                                # Go checksum database
+GONOSUMDB                              # Go checksum-database exemption pattern (use sparingly)
+GONOSUMCHECK                           # Same family as GONOSUMDB; sparingly
+GOPRIVATE                              # Private-module pattern (narrow scope only)
+GOFLAGS                                # Default Go flags
+GOTOOLCHAIN                            # Toolchain selection (`local` for strict mode)
+GOMODCACHE                             # Module-cache location (used in IR evidence step)
+GOVULNCHECK_VERSION                    # CI-only convention used in this repo's examples

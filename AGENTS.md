@@ -36,6 +36,37 @@ Before applying any installation, configuration, or shell-init change in this re
    `--exclude-newer`, etc.)
    without a visible per-command opt-out.
 
+### Untrusted Repos
+
+5. Treat any freshly-cloned third-party repo as untrusted.
+   Do not run `install` / `build` / `test` / `run` / `npx` / `pnpm dlx` / `bunx` / `uvx`
+   / `cargo run` / `cargo install` / `go run <remote>` against it on a machine with
+   ambient credentials.
+   Use the procedure in
+   [`guidelines/untrusted-repo-first-run.md`](guidelines/untrusted-repo-first-run.md).
+
+### Ban List Without Pin And Review
+
+6. Do not invoke `npx`, `pnpm dlx`, `bunx`, `uvx`, or `go run <remote>` without an
+   explicit version pin and review of the resolved package@version.
+   These tools bypass the cool-off window by fetching and executing the latest published
+   code.
+
+### Curl Installs
+
+7. Do not run `curl | sh` install commands from untrusted sources.
+   Verify the installer URL belongs to the documented project and check signatures or
+   checksums where available.
+
+### Strict Mode
+
+8. Default to **Balanced** mode.
+   Enter **Strict** mode (see [`guidelines/strict-mode.md`](guidelines/strict-mode.md))
+   when the repo’s `AGENTS.md` or `SUPPLY-CHAIN-SECURITY.md` declares it, when the repo
+   is untrusted, or when the machine has publish tokens or production access.
+   Never grant yourself an **Emergency Exception**; prepare the exception record and ask
+   a human to approve.
+
 ## House Style
 
 Edits to any doc in this repo must follow `std-doc-guidelines.md` (Title Case headings,

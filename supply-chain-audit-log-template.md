@@ -13,6 +13,25 @@ Every audit run leaves an entry here.
 The goal: a future reader (human or agent) can reconstruct exactly what was checked,
 what was found, how each finding was analysed, and what action was taken.
 
+## Redaction Rules
+
+Audit logs are useful precisely because they contain raw output.
+That makes them a secret-leak hazard.
+Before committing or sharing:
+
+- **Never paste live tokens, secrets, private keys, or cookie strings.** Replace with
+  `[REDACTED token id <last-4>]` or similar.
+  This includes anything from `~/.npmrc` `_authToken=`, `~/.pypirc` passwords,
+  `~/.cargo/credentials.toml`, `~/.config/gh/hosts.yml`, environment dumps, and shell
+  history snippets.
+- **Redact internal hostnames, internal package names, and customer identifiers** when
+  the log will be shared outside a small team.
+  The redaction marker should still convey shape (e.g. `internal-cluster-[REDACTED]`
+  rather than removing the line entirely).
+- If the log is gitignored and lives only on a personal machine, redaction can be
+  lighter — but the file is still on disk and may be exfiltrated by the next malicious
+  package. Treat all logs as recoverable.
+
 ## Entry Format
 
 Each entry uses the headings below, in order.

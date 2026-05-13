@@ -83,10 +83,16 @@ named incident below has already been remediated.
 - **`pip install` without `--require-hashes`** does not verify package integrity.
   A compromised registry or man-in-the-middle can serve a different artifact than the
   one the maintainer uploaded.
-- **Project-local configuration** (`pyproject.toml`, `setup.cfg`) can override
-  user-level settings.
-  Environment variables are the only setting that beats project-local config in the
-  precedence chain for both pip and uv.
+- **For uv, project-local configuration** (`pyproject.toml [tool.uv]`, `uv.toml`) can
+  override user-level settings.
+  Environment variables beat project-local uv config; only an explicit CLI flag beats
+  the env var.
+- **For pip, project-local files like `pyproject.toml` and `setup.cfg` are not read as
+  pip configuration.** Pip configuration comes from global / user / site `pip.conf` (or
+  `pip.ini`), `PIP_CONFIG_FILE` if set, `PIP_*` environment variables, and CLI flags.
+  Setting `[tool.pip]` in `pyproject.toml` has no effect on pip install behavior.
+  (`pyproject.toml` does influence build-backend selection and dependency declarations,
+  but that is build-system configuration, not pip configuration.)
 
 ## How PyPI Differs From npm
 
@@ -264,11 +270,17 @@ strategy depends on it.
 ```
 HIGHEST PRIORITY  ->  command-line flag (--uploaded-prior-to, --only-binary, etc.)
                   ->  environment variable (PIP_* prefix)
-                  ->  project-local config (pyproject.toml [tool.pip], setup.cfg)
-                  ->  user config (~/.config/pip/pip.conf or ~/pip/pip.ini on Windows)
-                  ->  global config (/etc/pip.conf)
+                  ->  PIP_CONFIG_FILE (if set; loaded last among config files)
+                  ->  site config ($VIRTUAL_ENV/pip.conf inside a virtualenv)
+                  ->  user config (~/.config/pip/pip.conf; legacy ~/.pip/pip.conf)
+                  ->  global config (/etc/pip.conf, /etc/xdg/pip/pip.conf)
 LOWEST PRIORITY   ->  pip builtin defaults
 ```
+
+Pip does **not** read `[tool.pip]` in `pyproject.toml` or `setup.cfg` as a configuration
+source for install hardening.
+Project metadata in `pyproject.toml` can declare dependencies, extras, and PEP 517 build
+backends, but it does not override or supplement pip’s INI-based config layers.
 
 ### uv Precedence
 
@@ -340,10 +352,15 @@ Source distributions (`sdist`) execute arbitrary Python code during installation
 Wheels do not execute code at install time.
 
 - **pip:** `PIP_ONLY_BINARY=":all:"` or `pip install --only-binary :all:`.
-- **uv:** `UV_ONLY_BINARY=":all:"`. uv prefers wheels by default but will fall back to
-  sdists unless this is set.
+- **uv:** `UV_NO_BUILD=true` (equivalent to `--no-build`; refuses to build any source
+  distribution). uv prefers wheels by default but will fall back to sdists unless this is
+  set. uv does not expose `--only-binary` as an environment variable; the `--only-binary`
+  flag is available on the CLI and as `only-binary` under `[tool.uv.pip]` in
+  `pyproject.toml` / `uv.toml`.
 - **uv (project mode):** set `no-build = true` in `[tool.uv]` in `pyproject.toml` or
   `uv.toml`.
+- **uv (pip-mode project config):** set `only-binary = [":all:"]` in `[tool.uv.pip]` if
+  you prefer project-level config over the env var.
 - **pipx:** inherits from pip or uv; set the corresponding env var.
 - **poetry:** no direct equivalent for refusing sdists.
   Poetry builds from sdist when no wheel is available.
@@ -353,7 +370,7 @@ Wheels do not execute code at install time.
 
 **Caveat:** some legitimate packages do not publish wheels for all platforms (packages
 with C extensions on uncommon architectures, for example).
-For those, opt out per package: `UV_ONLY_BINARY= uv pip install some-c-extension-pkg`.
+For those, opt out per command: `UV_NO_BUILD= uv pip install some-c-extension-pkg`.
 
 ### Control 3: Frozen Lockfile With Hash Pinning
 
@@ -417,8 +434,10 @@ export UV_EXCLUDE_NEWER="7 days"
 export PIP_UPLOADED_PRIOR_TO="P7D"
 
 # Refuse source distributions. Blocks setup.py code execution at install time.
+# UV_NO_BUILD is the uv equivalent of --no-build. uv does not expose an env var
+# named UV_ONLY_BINARY; use this or set only-binary in [tool.uv.pip] project config.
 export PIP_ONLY_BINARY=":all:"
-export UV_ONLY_BINARY=":all:"
+export UV_NO_BUILD=true
 ```
 
 The next several sections wire this file into each platform and shell.
@@ -461,7 +480,7 @@ Cover both by adding the sourcer to both `~/.bash_profile` (or `~/.profile`) and
 set -gx UV_EXCLUDE_NEWER "7 days"
 set -gx PIP_UPLOADED_PRIOR_TO "P7D"
 set -gx PIP_ONLY_BINARY ":all:"
-set -gx UV_ONLY_BINARY ":all:"
+set -gx UV_NO_BUILD true
 ```
 
 fish does not source POSIX files cleanly, so reproduce the exports directly.
@@ -473,7 +492,7 @@ Files under `~/.config/fish/conf.d/` are auto-sourced.
 echo "$UV_EXCLUDE_NEWER"       # 7 days
 echo "$PIP_UPLOADED_PRIOR_TO"  # P7D
 echo "$PIP_ONLY_BINARY"        # :all:
-echo "$UV_ONLY_BINARY"         # :all:
+echo "$UV_NO_BUILD"            # true
 ```
 
 ## Setup: Linux (Debian/Ubuntu/Fedora/RHEL/Arch)
@@ -518,7 +537,7 @@ units, is `environment.d`:
 UV_EXCLUDE_NEWER=7 days
 PIP_UPLOADED_PRIOR_TO=P7D
 PIP_ONLY_BINARY=:all:
-UV_ONLY_BINARY=:all:
+UV_NO_BUILD=true
 ```
 
 ## Setup: Windows
@@ -534,7 +553,7 @@ Create the file if it does not exist.
 $env:UV_EXCLUDE_NEWER = "7 days"
 $env:PIP_UPLOADED_PRIOR_TO = "P7D"
 $env:PIP_ONLY_BINARY = ":all:"
-$env:UV_ONLY_BINARY = ":all:"
+$env:UV_NO_BUILD = "true"
 ```
 
 ### PowerShell 5 (Windows PowerShell)
@@ -552,7 +571,7 @@ and any GUI-launched process the user starts:
 [Environment]::SetEnvironmentVariable("UV_EXCLUDE_NEWER", "7 days", "User")
 [Environment]::SetEnvironmentVariable("PIP_UPLOADED_PRIOR_TO", "P7D", "User")
 [Environment]::SetEnvironmentVariable("PIP_ONLY_BINARY", ":all:", "User")
-[Environment]::SetEnvironmentVariable("UV_ONLY_BINARY", ":all:", "User")
+[Environment]::SetEnvironmentVariable("UV_NO_BUILD", "true", "User")
 ```
 
 ### cmd.exe
@@ -566,7 +585,7 @@ entries:
 setx UV_EXCLUDE_NEWER "7 days"
 setx PIP_UPLOADED_PRIOR_TO "P7D"
 setx PIP_ONLY_BINARY ":all:"
-setx UV_ONLY_BINARY ":all:"
+setx UV_NO_BUILD "true"
 ```
 
 Note: `setx` does not affect the current cmd session; open a new shell to pick up the
@@ -599,7 +618,7 @@ Inject the variables into the runner’s environment explicitly.
 ```yaml
 env:
   UV_EXCLUDE_NEWER: "7 days"
-  UV_ONLY_BINARY: ":all:"
+  UV_NO_BUILD: "true"
   PIP_ONLY_BINARY: ":all:"
   PIP_UPLOADED_PRIOR_TO: "P7D"
 
@@ -617,7 +636,7 @@ jobs:
 ```yaml
 variables:
   UV_EXCLUDE_NEWER: "7 days"
-  UV_ONLY_BINARY: ":all:"
+  UV_NO_BUILD: "true"
   PIP_ONLY_BINARY: ":all:"
   PIP_UPLOADED_PRIOR_TO: "P7D"
 ```
@@ -634,11 +653,17 @@ When pip builds an sdist, it executes `setup.py` (or a PEP 517 build backend) wi
 access to the filesystem and network.
 Wheels bypass this entirely.
 
-### Why `--only-binary :all:` Is The Primary Defense
+### Why Refusing sdists Is The Primary Defense
 
-Setting `PIP_ONLY_BINARY=":all:"` or `UV_ONLY_BINARY=":all:"` forces the installer to
-refuse any package that does not have a pre-built wheel available.
+Setting `PIP_ONLY_BINARY=":all:"` for pip and `UV_NO_BUILD=true` for uv forces the
+installer to refuse any package that does not have a pre-built wheel available.
 This eliminates the entire class of `setup.py`-based attacks.
+
+Note: pip’s `--only-binary` flag has the env-var equivalent `PIP_ONLY_BINARY` (pip
+auto-derives `PIP_<OPTION>` for every command-line flag).
+uv exposes `UV_NO_BUILD` (equivalent to `--no-build`) but does not expose an env var
+named `UV_ONLY_BINARY`. To get `--only-binary` semantics at project scope in uv, set
+`only-binary = [":all:"]` under `[tool.uv.pip]` in `pyproject.toml` or `uv.toml`.
 
 ### When You Need An sdist
 
@@ -646,8 +671,8 @@ Some packages (especially those with C extensions on uncommon platforms) only di
 sdists. For those specific packages, opt out narrowly:
 
 ```sh
-# uv: allow sdist for one package
-UV_ONLY_BINARY= uv pip install some-c-extension-pkg
+# uv: allow sdist for one command
+UV_NO_BUILD= uv pip install some-c-extension-pkg
 
 # pip: allow sdist for one package
 pip install --only-binary :all: --no-binary some-c-extension-pkg some-c-extension-pkg
@@ -787,7 +812,7 @@ done
 ### Per-Project (When Adding Or Removing Dependencies)
 
 - [ ] To intentionally install a fresh package, explicitly unset the quarantine
-  variables per command, visibly: `UV_EXCLUDE_NEWER= UV_ONLY_BINARY= uv add some-pkg`.
+  variables per command, visibly: `UV_EXCLUDE_NEWER= UV_NO_BUILD= uv add some-pkg`.
 - [ ] After lockfile change, run `osv-scanner scan source -L <lockfile>` or `pip-audit`.
 - [ ] Commit lockfile.
 

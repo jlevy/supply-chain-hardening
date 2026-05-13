@@ -39,6 +39,19 @@ independent sources from the “Incident Reporting Feeds” list in
 for inclusion: high download count, novel mechanism, named campaign, or persistence
 patterns worth recognising on sight.
 
+`compromised-packages.md` has two sections:
+
+- **Table (Actionable IOCs)**: rows with exact `pkg@version` (or a fully-linked GHSA /
+  full-IOC-list URL), dates, and multi-source references.
+  Defenders scan against this section.
+- **Contextual Incidents (Unverified / Pending Verification)**: campaigns named in
+  trusted feeds but missing per-version detail or independent verification.
+  Awareness only; no grep-able IOCs.
+
+Add new rows to the **Table** when they meet the bar.
+Move rows out of Contextual into the Table when verification is completed, or delete
+from Contextual if the campaign turns out to be misattributed.
+
 Procedure:
 
 1. Verify with at least two independent sources from
@@ -46,7 +59,7 @@ Procedure:
    Reporting Feeds”. Acceptable substitutes: a CISA alert, or a primary maintainer
    postmortem.
 2. Append a new row (or rows, one per ecosystem if the campaign hit multiple) to the
-   table. Match the existing column structure exactly: Date, Name, Ecosystem, Scale,
+   Table. Match the existing column structure exactly: Date, Name, Ecosystem, Scale,
    Affected `pkg@version` (representative), Vector, References.
 3. Quote exact `package@version` strings.
    Do not paraphrase as “version 1.x”.
@@ -115,6 +128,32 @@ Procedure:
 8. Refresh URLs annually.
    Click through each IOC-feed URL once a year; replace dead links with archive.org
    snapshots rather than deleting them.
+
+## Maintaining `tests/known-env-vars.txt`
+
+`tests/validate-docs.py` (run automatically in CI via `.github/workflows/doc-lint.yml`)
+checks that every package-manager-shaped env-var name in the docs (`NPM_CONFIG_*`,
+`PIP_*`, `UV_*`, `CARGO_*`, and the `GO*` names we use) is in
+`tests/known-env-vars.txt`. This catches the “`UV_ONLY_BINARY`-class bug” — a
+plausibly-named env var that does not actually exist.
+
+When you introduce a new env var in the docs:
+
+1. Add the name to `tests/known-env-vars.txt`. Include a comment with the
+   package-manager version that introduced it.
+2. If the env var is one that does not work (e.g. you are documenting a common
+   misconception), add it to the “Documented-as-not-supported” section of the allow-list
+   with a comment explaining the intent.
+3. Run `python3 tests/validate-docs.py` locally; it must exit 0.
+
+When a package manager (npm / pnpm / pip / uv / Cargo / Go) releases a major version,
+re-verify the env vars it honors:
+
+- Read the release notes for added / renamed / removed config options.
+- Update the allow-list accordingly.
+- Run the validator.
+- Bump the “Last Verified Against” entry for that tool (see
+  [MAINTENANCE.md](MAINTENANCE.md)).
 
 ## Sourcing And Citation Rules
 

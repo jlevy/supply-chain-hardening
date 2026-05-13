@@ -36,7 +36,11 @@ Routine low-impact typosquats with negligible download counts.
 ecosystems, each ecosystem gets its own row so per-ecosystem audits stay
 straightforward.
 
-## Table
+## Table (Actionable IOCs)
+
+Every row below has either an exact `pkg@version` IOC, a complete affected-package list
+at the linked URL, or a canonical GHSA / RUSTSEC ID that resolves to one.
+Defenders running a scan can use this table directly without follow-up research.
 
 | Date | Name | Ecosystem | Scale | Affected `pkg@version` (representative; full list at the linked source) | Vector | References |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -57,15 +61,27 @@ straightforward.
 | 2025-12 | evm-units / uniswap-utils Web3 targeting | crates.io | 2 crates, ~14,400 combined downloads | `evm-units` (all versions by `ablerust`), `uniswap-utils` (14 versions) | Transitive-dep facade; OS-specific binary download and execution via `#[ctor::ctor]` | [Rust Blog](https://blog.rust-lang.org/2025/12/03/crates.io-malicious-crates-evm-units-and-uniswap-utils/); [Socket](https://socket.dev/blog/malicious-rust-crate-evm-units-serves-cross-platform-payloads); [The Hacker News](https://thehackernews.com/2025/12/malicious-rust-crate-delivers-os.html) |
 | 2025-12 | finch-rst / sha-rst credential theft | crates.io | 3 crates, ~61 combined downloads | `finch-rst`, `sha-rst`, `finch_cli_rust` | Typosquat of `finch`/`finch_cli`; credential exfiltration payload in `sha-rst` | [RUSTSEC-2025-0150](https://rustsec.org/advisories/RUSTSEC-2025-0150.html); [RUSTSEC-2025-0151](https://rustsec.org/advisories/RUSTSEC-2025-0151.html); [RUSTSEC-2025-0152](https://rustsec.org/advisories/RUSTSEC-2025-0152.html) |
 | 2026-02..03 | Time-utility .env exfiltration campaign | crates.io | 5 crates | `chrono_anchor`, `dnp3times`, `time_calibrator`, `time_calibrators`, `time-sync` | Impersonation of time utilities; `.env` exfiltration; `chrono_anchor` obfuscated | [Socket](https://socket.dev/blog/5-malicious-rust-crates-posed-as-time-utilities-to-exfiltrate-env-files); [The Hacker News](https://thehackernews.com/2026/03/five-malicious-rust-crates-and-ai-bot.html) |
-| 2026-03 | Aqua Trivy compromise | npm | Single scanner package | Trivy npm package (specific versions) | Attributed to “TeamPCP” actor | StepSecurity (pending direct citation) |
 | 2026-03-24 | LiteLLM / TeamPCP | PyPI | 2 versions, ~119K downloads in ~40 minutes; ~95M monthly downloads | `litellm@1.82.7`, `litellm@1.82.8` | Stolen PyPI token via compromised Trivy GitHub Action in CI/CD; credential harvesting + systemd backdoor; TeamPCP | [PyPI incident report](https://blog.pypi.org/posts/2026-04-02-incident-report-litellm-telnyx-supply-chain-attack/); [Datadog Security Labs](https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/); [Snyk](https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/); GHSA-5mg7-485q-xm76 |
 | 2026-03-31 | Axios | npm | 2 versions, ~70M weekly downloads | `axios@1.14.1`, `axios@0.30.4` | Sapphire Sleet (DPRK); pulls 2nd-stage RAT | [CISA](https://www.cisa.gov/news-events/cybersecurity-advisories/2026/04/20/supply-chain-compromise-impacts-axios-node-package-manager); [Microsoft Security](https://www.microsoft.com/en-us/security/blog/2026/04/01/mitigating-the-axios-npm-supply-chain-compromise/); [Mandiant](https://cloud.google.com/blog/topics/threat-intelligence/north-korea-threat-actor-targets-axios-npm-package) |
-| 2026-04 | Bitwarden CLI | npm | Single package | `@bitwarden/cli` (specific versions) | TeamPCP actor | StepSecurity (pending direct citation) |
 | 2026-04 | mysten-metrics build.rs exfiltration | crates.io | 1 crate | `mysten-metrics@9.0.3` | Malicious `build.rs` runs `env`/`cat`/`ls -R` at compile time, exfils via HTTP POST | [GHSA-G38R-8GMR-GHRF](https://github.com/advisories/GHSA-G38R-8GMR-GHRF); RUSTSEC-2026-0107 |
 | 2026-04-29 | SAP / `@cap-js/*` (Mini Shai-Hulud) | npm | ~572K weekly downloads combined | `mbt@1.2.48`, `@cap-js/db-service@2.10.1`, `@cap-js/postgres@2.2.2`, `@cap-js/sqlite@2.2.2` | Worm pattern; harvests AWS/GCP/Azure/k8s/Vault/GitHub/npm credentials | [The Hacker News](https://thehackernews.com/2026/04/sap-npm-packages-compromised-by-mini.html); [The Register](https://www.theregister.com/2026/04/30/supply_chain_attacks_sap_npm_packages/) |
 | 2026-04-30 | Intercom + lightning | npm | 4 versions | `intercom-client@7.0.4`, `intercom-client@7.0.5`, `lightning@2.6.2`, `lightning@2.6.3` | Same payload as SAP wave | (linked from SAP postmortem) |
 | 2026-05-11 | TanStack (Mini Shai-Hulud) | npm | 84 versions across 42 packages, 19:20-19:26 UTC, ~6 minute window | 42 `@tanstack/*` packages; e.g. `@tanstack/react-router@1.169.5`-`1.169.8` (patched at `1.169.9`); full list in GHSA | `pull_request_target` “Pwn Request” + GitHub Actions cache poisoning + OIDC token theft from runner memory (`/proc/<pid>/mem`); TeamPCP | [GHSA-g7cv-rxg3-hmpx](https://github.com/advisories/GHSA-g7cv-rxg3-hmpx); CVE-2026-45321 (CVSS 9.6); [TanStack postmortem](https://tanstack.com/blog/npm-supply-chain-compromise-postmortem); [StepSecurity](https://www.stepsecurity.io/blog/mini-shai-hulud-is-back-a-self-spreading-supply-chain-attack-hits-the-npm-ecosystem); [Socket](https://socket.dev/blog/tanstack-npm-packages-compromised-mini-shai-hulud-supply-chain-attack); [Aikido](https://www.aikido.dev/blog/mini-shai-hulud-is-back-tanstack-compromised) |
 | 2026-05-11 | TanStack worm cross-ecosystem | PyPI | 2 packages | `mistralai@2.4.6`, `guardrails-ai@0.10.1` | Stolen CI/CD tokens from the npm wave propagated to PyPI | Same sources as the npm row above |
+
+## Contextual Incidents (Unverified / Pending Verification)
+
+The campaigns below have been mentioned in trusted feeds but lack the per-version,
+multi-source citations required for the actionable-IOC table.
+Treat them as situational awareness, **not** as actionable IOCs — there is no grep-able
+string here, and the hardening cool-off does not specifically target them.
+If you have verified package@version + dates + at least two independent references,
+promote the row into the canonical table above and remove it here.
+
+| Date (approx.) | Name | Ecosystem | What is known | What is missing |
+| --- | --- | --- | --- | --- |
+| 2026-03 | Aqua Trivy compromise | npm | Attributed to the “TeamPCP” actor; flagged by StepSecurity. | Exact package name (Trivy is a Go binary; the npm angle is unclear), version range, primary citation, and grep-able IOC. |
+| 2026-04 | Bitwarden CLI | npm | `@bitwarden/cli` family flagged; “TeamPCP” attribution. | Exact compromised versions, dates, and at least one primary or vendor source. |
 
 ## How To Use This Table
 

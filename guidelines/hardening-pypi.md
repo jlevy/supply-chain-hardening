@@ -22,7 +22,7 @@ export UV_EXCLUDE_NEWER="7 days"
 
 # Refuse source distributions (sdists). Blocks setup.py code execution at install time.
 export PIP_ONLY_BINARY=":all:"
-export UV_ONLY_BINARY=":all:"
+export UV_NO_BUILD=true
 
 # pip 26.1+ rolling quarantine. P7D = 7 days in ISO 8601 duration format.
 export PIP_UPLOADED_PRIOR_TO="P7D"
@@ -43,7 +43,7 @@ Detail on each in
   ```fish
   set -gx UV_EXCLUDE_NEWER "7 days"
   set -gx PIP_ONLY_BINARY ":all:"
-  set -gx UV_ONLY_BINARY ":all:"
+  set -gx UV_NO_BUILD true
   set -gx PIP_UPLOADED_PRIOR_TO "P7D"
   ```
 - **Windows PowerShell**: add to `$PROFILE` (see
@@ -52,20 +52,57 @@ Detail on each in
 ### Step 3: Verify
 
 ```sh
-uv pip install --dry-run requests 2>&1 | head -5   # should show exclude-newer in effect
-pip config get global.only-binary                   # :all:
-echo "$UV_EXCLUDE_NEWER"                            # 7 days
-echo "$PIP_UPLOADED_PRIOR_TO"                       # P7D
+# Shell-state check: each variable is set in the current shell.
+env | grep -E '^(UV_EXCLUDE_NEWER|UV_NO_BUILD|PIP_ONLY_BINARY|PIP_UPLOADED_PRIOR_TO)='
+
+# Behaviour check: uv should refuse a known sdist-only build under UV_NO_BUILD.
+# This dry-run must fail when the env var is honored.
+uv pip install --dry-run --no-deps 'pyahocorasick==2.0.0' 2>&1 | head -5
 ```
+
+Note: `pip config get global.only-binary` reads pip’s config files, not env vars; it
+returns nothing if the value comes only from `PIP_ONLY_BINARY`. Use `env | grep` to
+confirm env-var state, then a behaviour check to confirm the process honors it.
+
+Env-var-only setups are not visible to GUI-launched agents or non-interactive
+subprocesses that do not inherit your shell environment.
+If you run agents through a desktop launcher, also configure the system-wide environment
+(see `research/research-pypi-supply-chain-hardening.md` → “systemd User Environment” or
+the macOS launchd / Windows User-wide instructions).
 
 ### Step 4: When You Intentionally Need A Fresh Package
 
 Unset the quarantine env vars per command, visibly:
 
 ```sh
-UV_EXCLUDE_NEWER= UV_ONLY_BINARY= uv pip install some-pkg
+UV_EXCLUDE_NEWER= UV_NO_BUILD= uv pip install some-pkg
 PIP_UPLOADED_PRIOR_TO= PIP_ONLY_BINARY= pip install some-pkg
 ```
+
+### Notes And Caveats
+
+- `UV_EXCLUDE_NEWER="7 days"` and `PIP_UPLOADED_PRIOR_TO="P7D"` are **not**
+  syntactically interchangeable.
+  uv accepts friendly durations natively; pip 26.1+ accepts ISO 8601 durations (`P7D` =
+  7 days). Setting `PIP_UPLOADED_PRIOR_TO=7 days` will silently fail to parse.
+- `PIP_UPLOADED_PRIOR_TO` depends on the index serving upload-timestamp metadata.
+  Public PyPI does; some private indexes (Artifactory, Nexus) may not.
+  Verify with `pip install --dry-run --uploaded-prior-to P7D <pkg-from-private-index>`
+  before trusting the control on a private index.
+- For private packages, do **not** use `--extra-index-url` (or `PIP_EXTRA_INDEX_URL`).
+  pip resolves across all indexes and the highest version wins, which is the
+  dependency-confusion vector that hit PyTorch / torchtriton.
+  Use a single index that routes to both public and private (e.g. through a proxy that
+  prefers private over public for matching names), or scope private packages to a
+  separate index URL via `--index-url` with explicit per-package routing.
+
+### Agent Ban List
+
+Do not run `uvx <pkg>` without an explicit version pin and a review of the resolved
+`pkg==version`. Pinning: `uvx --from <pkg>==<exact-version> <cmd>`. Full agent rules are
+in [`../AGENTS.md`](../AGENTS.md) → “Safety Rule For Agents”.
+For untrusted first-runs, see
+[`untrusted-repo-first-run.md`](untrusted-repo-first-run.md).
 
 ## Compromise Assessment
 
@@ -110,14 +147,39 @@ done
 
 ### Step 3: If You Have Hits
 
-1. **Revoke every credential reachable** from any machine that ran `pip install`,
-   `uv sync`, or `poetry install` while the malicious version was live.
-   Cover: PyPI tokens, GitHub tokens (`~/.config/gh/`), cloud creds
-   (`~/.aws/credentials`, `~/.config/gcloud/`), and any env-var-stored API keys.
-2. **Pin to the last known-good version** in your requirements or lockfile.
-   Regenerate the lockfile and commit.
-3. **Inspect shell history and config files** for exfiltrated content or unexpected
-   modifications.
+Follow the eight steps in order.
+The same outline appears in every per-ecosystem playbook so that incident response stays
+consistent regardless of which registry was hit.
+
+1. **Identify scope.** Affected machine(s), exact command(s), and time window when the
+   malicious version was installed (or imported, for runtime payloads like LiteLLM
+   1.82.8’s `litellm_init.pth`). Get this before any cleanup.
+2. **Preserve evidence before cleanup.** Snapshot the env(s):
+   `pip freeze > /tmp/audit-snapshot-pip-$(date +%s).txt`, save `~/.pypirc`,
+   `~/.bash_history`, virtualenv contents (`cp -a .venv /tmp/audit-snapshot-venv-...`),
+   and any active scanner output.
+   Commit into the private audit log before mutating.
+3. **Rotate tokens by category.** PyPI publish tokens (PyPI account → API tokens);
+   GitHub PAT/OAuth (`~/.config/gh`); cloud (`~/.aws/credentials`, `~/.config/gcloud/`,
+   Azure CLI); SSH (`~/.ssh/*`); env-var-stored API keys (the dominant exfil target for
+   the 2022-2026 PyPI wave).
+4. **Check persistence mechanisms specific to this payload.** LiteLLM 1.82.8 added a
+   systemd backdoor and a `.pth` file that runs at every Python startup; check
+   `systemctl --user list-unit-files --state=enabled` and grep for `*.pth` under your
+   site-packages. Ultralytics installed an XMRig miner; check running processes and CPU
+   usage history.
+5. **Remove or downgrade the affected dependency.** Pin to the last known-good version
+   in `pyproject.toml` / `requirements.txt` / `uv.lock`.
+6. **Regenerate lockfile from trusted sources.** `uv lock` (or
+   `pip-compile --generate-hashes`) against the cool-off window in effect.
+   Commit.
+7. **Re-run the scanner to confirm clean.** `osv-scanner scan source -L uv.lock` and
+   `pip-audit`. Treat any remaining `[MALICIOUS]` advisory as a failed cleanup.
+8. **Open a `supply-chain-audit-log.md` entry** using the template (see “Keeping A
+   Supply Chain Audit Log” below and
+   [`../supply-chain-audit-log-template.md`](../supply-chain-audit-log-template.md)).
+   Record raw findings, analysis, every action with timestamps, and any pending
+   follow-ups. Redact live credentials per the template’s Redaction Rules.
 
 ## Keeping A Supply Chain Audit Log
 
@@ -135,17 +197,24 @@ Inject the variables explicitly.
 ```yaml
 env:
   UV_EXCLUDE_NEWER: "7 days"
-  UV_ONLY_BINARY: ":all:"
+  UV_NO_BUILD: "true"
   PIP_ONLY_BINARY: ":all:"
   PIP_UPLOADED_PRIOR_TO: "P7D"
+  PIP_AUDIT_VERSION: "2.9.0"   # pin; verify against pypi.org/project/pip-audit/
 jobs:
   install:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: uv sync --frozen
+      - run: uv tool install --from "pip-audit==${PIP_AUDIT_VERSION}" pip-audit
       - run: pip-audit
 ```
+
+**Note on scanner pinning.** The recipe pins `pip-audit` rather than installing the
+latest from PyPI at job time.
+For production CI, pre-install pinned scanners into the runner image so the audit
+pipeline does not itself depend on a fresh network fetch.
 
 Other CI: see
 [research-pypi-supply-chain-hardening.md](../research/research-pypi-supply-chain-hardening.md#setup-ci-runners)

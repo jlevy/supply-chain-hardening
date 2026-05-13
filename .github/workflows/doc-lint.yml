@@ -1,0 +1,25 @@
+name: doc-lint
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - 'tests/known-env-vars.txt'
+      - 'tests/validate-docs.py'
+      - '.github/workflows/doc-lint.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-env-vars:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate env-var names against allow-list
+        run: python3 tests/validate-docs.py

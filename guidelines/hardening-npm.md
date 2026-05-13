@@ -30,7 +30,16 @@ export NPM_CONFIG_MINIMUM_RELEASE_AGE=10080
 export NPM_CONFIG_IGNORE_SCRIPTS=true
 
 # pnpm only: refuse mutating installs. npm warns and ignores; harmless.
+# npm users: use `npm ci` (clean install) in CI and after lockfile changes; it is
+# the non-mutating install mode for npm and is the equivalent of pnpm's frozen-lockfile.
 export NPM_CONFIG_FROZEN_LOCKFILE=true
+
+# pnpm only: fail when a dependency wants to run a build script that has not been
+# reviewed. Pair with `allowBuilds` in pnpm-workspace.yaml to allowlist trusted
+# build scripts. (pnpm 10.16+ exposes `strictDepBuilds`; `allowBuilds` is the
+# canonical name in v10.26+ for the build-script allowlist that replaced the
+# legacy `onlyBuiltDependencies` / `neverBuiltDependencies`.)
+export NPM_CONFIG_STRICT_DEP_BUILDS=true
 ```
 
 ### Step 2: Source From Shell Init
@@ -60,6 +69,10 @@ Detail on each in
 ### Step 3: Verify
 
 ```sh
+# Shell-state check: every variable is set in the current shell.
+env | grep -E '^NPM_CONFIG_(BEFORE|MIN_RELEASE_AGE|MINIMUM_RELEASE_AGE|IGNORE_SCRIPTS|FROZEN_LOCKFILE|STRICT_DEP_BUILDS)='
+
+# Tool view: npm and pnpm report what they actually honor (cross-check with shell).
 pnpm config get before                # ISO date ~7 days ago
 pnpm config get minimum-release-age   # 10080
 pnpm config get ignore-scripts        # true
@@ -68,15 +81,51 @@ npm config get before                 # date ~7 days ago
 npm config get ignore-scripts         # true
 ```
 
-`npm` warns “Unknown env config ‘frozen-lockfile’ / 'minimum-release-age'”. Those are
+`npm` warns “Unknown env config 'frozen-lockfile' / 'minimum-release-age'”. Those are
 pnpm-only features; npm still functions correctly.
+
+Env-var-only setups are not visible to GUI-launched agents or non-interactive
+subprocesses that do not inherit your shell environment.
+If you run agents through a desktop launcher (Claude Code app, IDE plugins,
+launchd-spawned processes), confirm the variables are present **in the agent’s own
+process** with `env | grep` rather than trusting your terminal’s view.
+On Linux, prefer `~/.config/environment.d/npm-hardening.conf` for systemd-launched
+processes (see the research doc).
+
+#### Names And Units Differ Between npm And pnpm
+
+| Tool | Env var | Unit |
+| --- | --- | --- |
+| npm (any) | `NPM_CONFIG_BEFORE` | absolute ISO 8601 date |
+| npm 11.10+ | `NPM_CONFIG_MIN_RELEASE_AGE` | days (integer) |
+| pnpm 10.16.0+ | `NPM_CONFIG_MINIMUM_RELEASE_AGE` | minutes (integer) |
+
+Do not set both `NPM_CONFIG_BEFORE` and `NPM_CONFIG_MIN_RELEASE_AGE` for npm; pick one
+based on your npm version.
+pnpm’s `NPM_CONFIG_MINIMUM_RELEASE_AGE` (note the spelling: `MINIMUM`, not `MIN`) is
+safe to set alongside `BEFORE`; pnpm enforces the stricter of the two.
+
+### Agent Ban List
+
+Do not run `npx`, `pnpm dlx`, `bunx`, or `yarn dlx` without an explicit version pin and
+a review of the resolved `pkg@version`. These tools fetch and execute the latest
+published code, bypassing your cool-off window.
+Use `pnpm dlx <pkg>@<exact-version>` and read the resolved version before allowing
+execution. Full agent rules are in [`../AGENTS.md`](../AGENTS.md) → “Safety Rule For
+Agents”.
+
+For untrusted first-runs, see
+[`untrusted-repo-first-run.md`](untrusted-repo-first-run.md).
 
 ### Step 4: When You Intentionally Need A Fresh Package
 
-Unset the quarantine env vars per command, visibly:
+Unset the quarantine env vars per command, visibly.
+Cover both naming variants because you may not remember which is honored by your tool
+version:
 
 ```sh
-NPM_CONFIG_BEFORE= NPM_CONFIG_MINIMUM_RELEASE_AGE=0 NPM_CONFIG_FROZEN_LOCKFILE=false pnpm add some-pkg
+NPM_CONFIG_BEFORE= NPM_CONFIG_MIN_RELEASE_AGE=0 NPM_CONFIG_MINIMUM_RELEASE_AGE=0 \
+  NPM_CONFIG_FROZEN_LOCKFILE=false pnpm add some-pkg
 ```
 
 ## Compromise Assessment
@@ -145,18 +194,46 @@ done
 
 ### Step 3: If You Have Hits
 
-1. **Revoke every credential reachable** from any machine that ran `pnpm install`,
-   `npm install`, or `yarn install` while the malicious version was the latest.
-   Cover: npm tokens (`npm token list`), GitHub tokens (`~/.config/gh/`, GitHub Settings
-   → Developer settings), cloud creds (`~/.aws/credentials`, `~/.config/gcloud/`), and
-   any env-var-stored API keys.
-2. **Downgrade to the immediately-prior version** in `package.json`, then
-   `pnpm install --before=<date-of-known-good>`. Commit.
-3. **Inspect `~/.npmrc`, `~/.gitconfig`, `~/.bash_history`, and shell history** for
-   exfiltrated content or unexpected modifications.
-4. **Treat the developer machine as potentially compromised** for the persistence
-   variants (Shai-Hulud 2.0 registers a self-hosted GitHub runner named `SHA1HULUD`;
-   check `gh api /user/runners`).
+Follow the eight steps in order.
+Items marked “ecosystem-specific” describe what to do for npm; the same eight-step
+outline appears in every per-ecosystem playbook so that incident response stays
+consistent regardless of which registry was hit.
+
+1. **Identify scope.** Affected machine(s), the exact command(s) and time window when
+   the malicious version was installed.
+   Get this before any cleanup; you will need it for credential rotation and incident
+   reporting.
+2. **Preserve evidence before cleanup.** Snapshot the install state:
+   `cp -a $(npm root -g) /tmp/audit-snapshot-npm-global-$(date +%s)`, capture `~/.npmrc`
+   / `~/.bash_history`, save `npm config list --json`, `gh api /user` output, and any
+   active OSV-scanner output.
+   Commit these into the private audit log before mutating anything.
+3. **Rotate tokens by category.** npm tokens (`npm token list`, then revoke); GitHub PAT
+   and OAuth (Settings → Developer settings, and `gh api /user/runners` to look for
+   persistence); cloud (`~/.aws/credentials`, `~/.config/gcloud/`, Azure CLI); SSH
+   (`~/.ssh/*`); any env-var-stored API keys.
+4. **Check persistence mechanisms specific to this payload.** Shai-Hulud 2.0 registers a
+   self-hosted GitHub runner literally named `SHA1HULUD`; check `gh api /user/runners`
+   and `gh api /orgs/<org>/actions/runners`. qix / browser-hijack variants do not have
+   persistence; worm variants do.
+   Look at `~/.bash_history`, recent `crontab -l`, `launchctl list` (macOS), and
+   `systemctl --user list-unit-files --state=enabled` (Linux).
+5. **Remove or downgrade the affected dependency.** Pin to the immediately-prior version
+   in `package.json`, then `pnpm install --before=<date-of-known-good>` or `npm ci`
+   against a clean lockfile.
+   Commit.
+6. **Regenerate lockfile from trusted sources.** Delete `node_modules/`, delete
+   `package-lock.json` / `pnpm-lock.yaml`, run the install against the cool-off window
+   in effect. Commit the regenerated lockfile.
+7. **Re-run the scanner to confirm clean.** `osv-scanner scan -L pnpm-lock.yaml` (or
+   `package-lock.json`) and `uv run scripts/audit_npm.py` if the hit was on a global
+   tool. Exit 3 means `[MALICIOUS]` still present; treat 0 as the only acceptable
+   post-clean state.
+8. **Open a `supply-chain-audit-log.md` entry** using the template (see “Keeping A
+   Supply Chain Audit Log” below and
+   [`../supply-chain-audit-log-template.md`](../supply-chain-audit-log-template.md)).
+   Record raw findings, analysis, every action with timestamps, and any pending
+   follow-ups. Redact live credentials per the template’s Redaction Rules.
 
 ## Keeping A Supply Chain Audit Log
 
@@ -252,6 +329,7 @@ env:
   NPM_CONFIG_IGNORE_SCRIPTS: "true"
   NPM_CONFIG_FROZEN_LOCKFILE: "true"
   NPM_CONFIG_MINIMUM_RELEASE_AGE: "10080"
+  OSV_SCANNER_VERSION: "v2.0.2"
 jobs:
   install:
     runs-on: ubuntu-latest
@@ -259,9 +337,18 @@ jobs:
       - name: Compute rolling quarantine
         run: echo "NPM_CONFIG_BEFORE=$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
-      - run: pnpm install
-      - run: osv-scanner scan -L pnpm-lock.yaml
+      - run: pnpm install   # honors frozen-lockfile via env var; npm equivalent: `npm ci`
+      - name: Install pinned osv-scanner
+        run: |
+          curl -fsSL -o /tmp/osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          chmod +x /tmp/osv-scanner
+      - run: /tmp/osv-scanner scan -L pnpm-lock.yaml
 ```
+
+**Note on scanner pinning.** The recipe pins `OSV_SCANNER_VERSION` instead of pulling
+`@latest`. For production CI, pre-install osv-scanner into the runner image and verify
+the binary checksum against the GitHub release.
 
 Other CI: see
 [research-npm-supply-chain-hardening.md](../research/research-npm-supply-chain-hardening.md#setup-ci-runners)

@@ -80,11 +80,13 @@ already been remediated by the upstream maintainer or by npm.
 - **`ignore-scripts` alone** defeats worm-class attacks but does nothing against
   browser-runtime hijack (qix).
   The full pattern needs multiple controls.
-- **Project-local `.npmrc`** overrides user-level config silently.
+- **Project-local config** can override user-level config silently.
+  For npm that means `./.npmrc`; for pnpm that means `pnpm-workspace.yaml` (and the
+  limited `.npmrc` auth/registry settings).
   A third-party repo cloned from GitHub can ship a `before=` override or a
   scoped-registry redirect.
-  Environment variables are the only setting that beats project `.npmrc` in npm’s
-  precedence chain.
+  Environment variables are the only layer that beats project-local config in both npm
+  and pnpm precedence chains.
 
 * * *
 
@@ -191,7 +193,10 @@ TanStack deprecated all 84 versions and rotated/purged their GitHub Actions cach
 ## How NPM/PNPM Config Precedence Works
 
 This is the single most important fact in the document, because the entire “override
-project-local `.npmrc`” requirement depends on it.
+project-local config” requirement depends on it.
+npm and pnpm diverged in how they source settings; treat them separately.
+
+### npm (Layered `.npmrc`)
 
 ```
 HIGHEST PRIORITY  →  command-line flag (--before, --ignore-scripts, etc.)
@@ -202,9 +207,6 @@ HIGHEST PRIORITY  →  command-line flag (--before, --ignore-scripts, etc.)
 LOWEST PRIORITY   →  npm builtin defaults
 ```
 
-Both `npm` and `pnpm` honor this order.
-Implications:
-
 - Settings in `~/.npmrc` can be silently overridden by any project-local `.npmrc`,
   including ones that arrive via `git clone` of a third-party repo.
 - Environment variables cannot be overridden by any `.npmrc` file.
@@ -214,10 +216,36 @@ Implications:
   work. Dashes in the config name become underscores in the variable name
   (`minimum-release-age` becomes `NPM_CONFIG_MINIMUM_RELEASE_AGE`).
 
-**Operational conclusion:** set hardening as environment variables, not as `~/.npmrc`
-entries.
-Use `.npmrc` only as a fallback for processes that do not source shell init (for
+### pnpm (Workspace YAML + Limited `.npmrc`)
+
+Current pnpm does **not** read most settings from `.npmrc`. As documented at
+`pnpm.io/settings`, pnpm reads only auth and registry settings from `.npmrc`. All other
+settings (hoistPattern, nodeLinker, shamefullyHoist, install controls, build allowlists,
+and similar) must come from:
+
+```
+HIGHEST PRIORITY  →  command-line flag
+                  →  environment variable (NPM_CONFIG_* or npm_config_*)
+                  →  project pnpm-workspace.yaml
+                  →  global ~/.config/pnpm/config.yaml
+LOWEST PRIORITY   →  pnpm builtin defaults
+```
+
+- `.npmrc` continues to govern auth (`_authToken`, `_auth`) and registry routing
+  (`registry=`, `@scope:registry=`) for both npm and pnpm.
+  Treat it as the auth/registry file, not the policy file.
+- For pnpm, project-level policy (frozen lockfile, allowed build scripts, etc.)
+  lives in `pnpm-workspace.yaml` at the workspace root, not `.npmrc`.
+
+### Operational Conclusion
+
+Environment variables remain the cross-tool way to enforce process-level defaults.
+They beat `.npmrc` (for npm) and `pnpm-workspace.yaml` (for pnpm) and are the only layer
+that survives the “third-party repo ships a config override” attack.
+
+Use `.npmrc` as a fallback only for processes that do not source shell init (for
 example, launchd-spawned background agents).
+For pnpm, prefer `~/.config/pnpm/config.yaml` for the same fallback purpose.
 
 ## The Four-Control Hardening Pattern
 
@@ -254,6 +282,31 @@ days old. pnpm checks each candidate version individually.
   Env var: `NPM_CONFIG_MIN_RELEASE_AGE=7`. Earlier npm 11.x versions warn “Unknown env
   config” but still function.
   Use `before=` for npm versions below 11.10.
+
+### Release-Age Controls: Name And Unit Cheat Sheet
+
+The names and units differ across tools and across versions.
+Pick the row for your tool and version, then set exactly one release-age control.
+
+| Tool | Env var | Unit | Available in |
+| --- | --- | --- | --- |
+| npm (any) | `NPM_CONFIG_BEFORE` | absolute ISO 8601 date | all current npm |
+| npm 11.10+ | `NPM_CONFIG_MIN_RELEASE_AGE` | days (integer) | npm 11.10+ |
+| pnpm 10.16.0+ | `NPM_CONFIG_MINIMUM_RELEASE_AGE` | minutes (integer) | pnpm 10.16.0+ |
+
+Rules:
+
+- For npm, do **not** set both `NPM_CONFIG_BEFORE` and `NPM_CONFIG_MIN_RELEASE_AGE` at
+  once. Pick one based on npm version.
+  If both are present npm’s behavior depends on the version and may be silently
+  inconsistent.
+- For pnpm, `NPM_CONFIG_MINIMUM_RELEASE_AGE` is the pnpm-native control; pnpm also
+  honors `NPM_CONFIG_BEFORE`. The hardening script in this repo sets `BEFORE` for
+  npm/pnpm compatibility plus `MINIMUM_RELEASE_AGE` for pnpm’s stronger semantics; pnpm
+  uses the stricter of the two when both are set.
+- npm warns “Unknown env config 'minimum-release-age'” because that is the pnpm
+  spelling; it continues to function.
+  Do not “fix” the warning by renaming the variable away from the pnpm canonical name.
 
 ### Control 3: `NPM_CONFIG_IGNORE_SCRIPTS` (No Install Hooks)
 
