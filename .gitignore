@@ -225,3 +225,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Attic: local-only working notes, reviews, scratch drafts.
+attic/
