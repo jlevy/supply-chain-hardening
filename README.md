@@ -94,9 +94,6 @@ IDEs and agents that auto-load that filename.
   configuration.
 - Per-ecosystem **research docs** in [`research/`](research/) explaining the threat
   model, attack mechanisms, and defensive trade-offs.
-- A **layered security model** at [`SECURITY_MODEL.md`](SECURITY_MODEL.md) describing
-  how developer defaults, project policy, CI, registry/proxy, sandbox, and incident
-  response fit together.
 - A **strict-mode reference** at
   [`guidelines/strict-mode.md`](guidelines/strict-mode.md) for agents and high-risk
   environments, plus an
@@ -115,6 +112,42 @@ IDEs and agents that auto-load that filename.
 For that, use the [Authoritative Sources](#authoritative-sources).
 The watch list is curated, not exhaustive: notable named incidents that defenders should
 recognise, plus enough context to make the hardening guides concrete.
+
+## The Layered Model
+
+Supply-chain hardening is a stack of six layers.
+This repo covers L1-L3 and L6 directly, names L5 with a concrete recipe, and points
+elsewhere for L4. Everything in the repo maps to one of these layers.
+
+| Layer | What | Where in this repo |
+| --- | --- | --- |
+| **L1** Developer defaults | Shell-init env vars (`UV_EXCLUDE_NEWER`, `NPM_CONFIG_BEFORE`, etc.) that harden every `install` from an interactive shell | The four per-ecosystem playbooks; [`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md) as the portable drop-in |
+| **L2** Project policy | Committed lockfiles, build-script allowlists, registry pins, workspace-level config | “Step 2” of each playbook; `pnpm-workspace.yaml`, `Cargo.lock`, `uv.lock`, `go.sum` |
+| **L3** CI enforcement | Hardening env vars inside CI runners; scanner jobs that fail merge on findings | “CI Enforcement” section of each playbook |
+| **L4** Org registry / proxy | Internal mirror with quarantine and delay policy (Artifactory, Nexus, Verdaccio, devpi) | **Out of scope for hands-on guidance.** Strongest team-level control; implementations vary by org. Use a controlled `GOPROXY` and crates.io vendoring for Go and Rust. |
+| **L5** Untrusted-repo sandbox | Container or namespace-isolated execution for the first run of any third-party repo | [`guidelines/untrusted-repo-first-run.md`](guidelines/untrusted-repo-first-run.md) |
+| **L6** Incident response | Per-incident credential rotation, persistence checks, downgrade, audit-log entry | “If You Have Hits” sections in each playbook; [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md) |
+
+How to read the stack:
+
+- **L1 alone** is enough for personal workstations and small teams against the
+  fast-yanked-incident class of attack.
+- **L1 + L2 + L3** is the minimum for any shared codebase: L1 protects the individual
+  developer, L2’s committed lockfile + L3’s CI gate close the gap when a peer skips L1.
+- **L4** is the strongest team-level control because it is the only layer that enforces
+  policy across every developer, agent, CI job, and tool that resolves packages.
+  If you can stand up a delayed internal mirror, do so.
+  This repo describes what the controls should enforce, not how to stand up the mirror.
+- **L5** is critical for AI agents and for anyone routinely cloning third-party repos:
+  install scripts, source builds, `build.rs`, proc-macros, and test files all execute
+  code with ambient credentials.
+- **L6** is the difference between “a malicious package landed on a developer machine”
+  and “a malicious package compromised production.”
+  Treat the audit log as the canonical record; do not rely on memory.
+
+[`guidelines/strict-mode.md`](guidelines/strict-mode.md) documents the Strict and
+Emergency-Exception modes that sit on top of the Balanced default; agents and high-risk
+environments should consult that file before installing anything.
 
 ## Why The Hardening Pattern Is Stable Even When The Incident List Changes
 
@@ -151,10 +184,9 @@ per-ecosystem build-time controls in the playbooks.
 ## Maintaining This Repo
 
 All doc-update procedures live in
-[`self-update-instructions.md`](self-update-instructions.md).
-The package-manager versions the playbooks have been validated against, and the
-re-verification procedure for major-version bumps, live in
-[`MAINTENANCE.md`](MAINTENANCE.md).
+[`self-update-instructions.md`](self-update-instructions.md), including the table of
+package-manager versions the playbooks have been validated against and the
+re-verification procedure for major-version bumps.
 At a glance:
 
 | Document | When To Update | Typical Cadence |

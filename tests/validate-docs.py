@@ -39,7 +39,6 @@ SCAN_GLOBS = [
     "README.md",
     "AGENTS.md",
     "SUPPLY-CHAIN-SECURITY.md",
-    "SECURITY_MODEL.md",
     "guidelines/*.md",
     "research/*.md",
 ]

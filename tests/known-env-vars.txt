@@ -1,9 +1,9 @@
 # Allow-list of package-manager-specific environment variables that appear
 # in this repo's documentation. tests/validate-docs.py greps the markdown
-# under guidelines/, research/, AGENTS.md, SUPPLY-CHAIN-SECURITY.md,
-# README.md, and SECURITY_MODEL.md for tokens matching the package-manager
-# env-var conventions (NPM_CONFIG_*, PIP_*, UV_*, CARGO_*, GO* with
-# specific names) and flags anything not in this list.
+# under guidelines/, research/, AGENTS.md, SUPPLY-CHAIN-SECURITY.md, and
+# README.md for tokens matching the package-manager env-var conventions
+# (NPM_CONFIG_*, PIP_*, UV_*, CARGO_*, GO* with specific names) and flags
+# anything not in this list.
 #
 # Update when a new env var is genuinely introduced. Leave a comment on
 # the row noting the package-manager version that introduced it so the

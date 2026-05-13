@@ -146,14 +146,42 @@ When you introduce a new env var in the docs:
    with a comment explaining the intent.
 3. Run `python3 tests/validate-docs.py` locally; it must exit 0.
 
-When a package manager (npm / pnpm / pip / uv / Cargo / Go) releases a major version,
-re-verify the env vars it honors:
+## Re-Verifying Package-Manager Versions
 
-- Read the release notes for added / renamed / removed config options.
-- Update the allow-list accordingly.
-- Run the validator.
-- Bump the “Last Verified Against” entry for that tool (see
-  [MAINTENANCE.md](MAINTENANCE.md)).
+The hardening playbooks reference specific package-manager versions (e.g.
+`NPM_CONFIG_MIN_RELEASE_AGE` requires npm 11.10+; `MINIMUM_RELEASE_AGE` requires pnpm
+10.16.0+). When npm, pnpm, pip, uv, Cargo, or Go publishes a major release, re-verify
+before bumping the Last Verified Against table.
+
+### Last Verified Against
+
+| Tool | Version | Verified date | Validator | Notes |
+| --- | --- | --- | --- | --- |
+| npm | 11.x | 2026-05-12 | initial author | `NPM_CONFIG_MIN_RELEASE_AGE` requires 11.10+ |
+| pnpm | 10.x | 2026-05-12 | initial author | `MINIMUM_RELEASE_AGE` requires 10.16.0+; `strictDepBuilds` / `allowBuilds` per 10.26+ |
+| pip | 26.1 | 2026-05-12 | initial author | `PIP_UPLOADED_PRIOR_TO` accepts ISO 8601 duration in 26.1+ |
+| uv | latest | 2026-05-12 | initial author | `UV_NO_BUILD` documented; `UV_ONLY_BINARY` confirmed not a real env var |
+| cargo | 1.83+ | 2026-05-12 | initial author | `cargo-vet`, `cargo-deny`, `cargo-audit` versions pinned in CI examples |
+| go | 1.25.10 / 1.26.3 | 2026-05-12 | initial author | Minimum for CVE-2026-42501 fix |
+
+### Procedure
+
+1. Read the release notes for added / renamed / removed config options.
+2. Check the env-var documentation page for the canonical names:
+   - npm: <https://docs.npmjs.com/cli/v11/configuring-npm/npmrc>
+   - pnpm: <https://pnpm.io/settings>
+   - pip: <https://pip.pypa.io/en/stable/topics/configuration/>
+   - uv: <https://docs.astral.sh/uv/reference/environment/>
+   - cargo: <https://doc.rust-lang.org/cargo/reference/config.html>
+   - go: <https://pkg.go.dev/cmd/go#hdr-Environment_variables>
+3. Update `tests/known-env-vars.txt` if names changed.
+4. Run `python3 tests/validate-docs.py`; it must exit 0.
+5. Update the playbook if a control’s flag name or unit changed.
+6. Bump the row in the Last Verified Against table above with the verifier’s name and
+   the date.
+7. Open an audit-log entry if any control changed semantics (so the change is visible to
+   future readers; see
+   [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md)).
 
 ## Sourcing And Citation Rules
 
