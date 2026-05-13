@@ -3,9 +3,9 @@ type: is
 id: is-01krfak4v29wc9b3rgzzysexzs
 title: Add untrusted-repo first-run sandbox procedure for agents and humans
 kind: feature
-status: open
+status: closed
 priority: 2
-version: 3
+version: 5
 labels:
   - docs
   - sandbox
@@ -17,7 +17,9 @@ dependencies:
     target: is-01krfak4px636erwt5dz79c01d
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:08:10.338Z
-updated_at: 2026-05-13T00:09:13.071Z
+updated_at: 2026-05-13T01:33:48.154Z
+closed_at: 2026-05-13T01:33:48.149Z
+close_reason: "Created guidelines/untrusted-repo-first-run.md with: the rule (no install/build/test on a machine with ambient creds), three minimal sandbox recipes (Docker preferred, macOS sandbox-exec, Linux unshare), strip-from-sandbox checklist, per-ecosystem table of what executes at install/build/test."
 ---
 # Add untrusted-repo first-run sandbox procedure for agents and humans
 

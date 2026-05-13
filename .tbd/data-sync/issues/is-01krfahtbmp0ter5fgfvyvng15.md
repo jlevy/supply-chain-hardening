@@ -3,15 +3,17 @@ type: is
 id: is-01krfahtbmp0ter5fgfvyvng15
 title: Address ecosystem-specific fine-grained corrections (npm ci, pnpm strictDepBuilds, dep confusion, proc-macros, GOPRIVATE)
 kind: task
-status: open
+status: closed
 priority: 2
-version: 1
+version: 3
 labels:
   - docs
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:07:26.835Z
-updated_at: 2026-05-13T00:07:26.835Z
+updated_at: 2026-05-13T01:35:59.010Z
+closed_at: 2026-05-13T01:35:59.005Z
+close_reason: "Added ecosystem-specific fine-grained corrections across all four playbooks. npm: documented npm ci as non-mutating install mode; added NPM_CONFIG_STRICT_DEP_BUILDS to hardening script with note about pnpm allowBuilds / strictDepBuilds canonical naming (verified against pnpm.io/settings); added Agent Ban List for npx/dlx/bunx. PyPI: added Notes And Caveats subsection covering UV_EXCLUDE_NEWER vs PIP_UPLOADED_PRIOR_TO syntax difference, PIP_UPLOADED_PRIOR_TO depending on index metadata, dependency-confusion guidance (no --extra-index-url for private); added Agent Ban List for uvx. Crates: split Step 6 into 'certify after review' vs 'temporary exemption'; added Step 7 covering proc-macros alongside build.rs; added cargo-alias-vs-direct-call caveat. Go: replaced GOFLAGS='' bypass with explicit per-command override; added Source-Policy Checks subsection for replace/exclude directives, broad GOPRIVATE, and go.work files."
 ---
 # Add ecosystem-specific operational gaps the reviewer flagged
 

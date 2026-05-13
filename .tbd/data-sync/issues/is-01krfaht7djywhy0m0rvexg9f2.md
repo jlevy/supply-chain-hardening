@@ -3,16 +3,18 @@ type: is
 id: is-01krfaht7djywhy0m0rvexg9f2
 title: Pin scanner versions in CI examples and add missing test commands
 kind: task
-status: open
+status: closed
 priority: 2
-version: 1
+version: 3
 labels:
   - docs
   - ci
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:07:26.701Z
-updated_at: 2026-05-13T00:07:26.701Z
+updated_at: 2026-05-13T01:37:26.194Z
+closed_at: 2026-05-13T01:37:26.189Z
+close_reason: "Pinned scanner versions across all four playbook CI examples. Crates: CARGO_AUDIT_VERSION, CARGO_DENY_VERSION as variables; added 'cargo test --locked'. Go: GOVULNCHECK_VERSION variable; added 'go test ./...' before scanner. npm: OSV_SCANNER_VERSION; install via pinned GitHub release URL; added comment about npm ci as equivalent to pnpm frozen-lockfile. PyPI: PIP_AUDIT_VERSION; install via uv tool. All four sections now have a 'Note on scanner pinning' paragraph noting that the recipe is quick-start and production CI should pre-install scanners into hardened runner images."
 ---
 # Pin scanner versions in CI examples; add cargo test --locked and go test ./... where missing
 

@@ -3,9 +3,9 @@ type: is
 id: is-01krfaht36k450vtkxyd6jgtbq
 title: Add Strict / Balanced / Emergency-Exception mode matrix and exception template
 kind: feature
-status: open
+status: closed
 priority: 2
-version: 3
+version: 5
 labels:
   - docs
   - strict-mode
@@ -16,7 +16,9 @@ dependencies:
     target: is-01krfak4px636erwt5dz79c01d
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:07:26.565Z
-updated_at: 2026-05-13T00:09:13.185Z
+updated_at: 2026-05-13T01:33:48.279Z
+closed_at: 2026-05-13T01:33:48.278Z
+close_reason: Created guidelines/strict-mode.md with three-mode matrix (Balanced default / Strict / Emergency Exception) covering release-age, lifecycle scripts, sandboxing, lockfiles, ban list for npx/dlx/bunx/uvx, and GOTOOLCHAIN. Includes per-ecosystem strict-mode additions and an Emergency Exception Record template suitable for commit messages / audit log.
 ---
 # Add Strict / Balanced / Emergency-Exception mode matrix and exception template
 

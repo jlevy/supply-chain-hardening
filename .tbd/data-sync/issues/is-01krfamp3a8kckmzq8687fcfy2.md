@@ -3,16 +3,18 @@ type: is
 id: is-01krfamp3a8kckmzq8687fcfy2
 title: Split compromised-packages.md into actionable IOCs and contextual incidents
 kind: task
-status: open
+status: closed
 priority: 3
-version: 1
+version: 3
 labels:
   - docs
   - watch-list
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:09:00.777Z
-updated_at: 2026-05-13T00:09:00.777Z
+updated_at: 2026-05-13T01:39:32.643Z
+closed_at: 2026-05-13T01:39:32.637Z
+close_reason: "Split compromised-packages.md into 'Table (Actionable IOCs)' and 'Contextual Incidents (Unverified / Pending Verification)' sections. Added explanatory headers so defenders running a scan know which rows are actionable. Updated self-update-instructions.md to document the two-section model and the promote/demote workflow. (Note: sch-gyxt already created the Unverified subsection; this bead added the actionable-IOC labeling and the formal split policy.)"
 ---
 # Separate "confirmed actionable IOCs" from "contextual incidents" in compromised-packages.md
 

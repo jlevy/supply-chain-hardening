@@ -3,16 +3,18 @@ type: is
 id: is-01krfaemv32r3m2wdtbkz2k4ht
 title: Correct pip config precedence in PyPI research doc
 kind: bug
-status: open
+status: closed
 priority: 0
-version: 1
+version: 3
 labels:
   - correctness
   - pypi
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:05:42.882Z
-updated_at: 2026-05-13T00:05:42.882Z
+updated_at: 2026-05-13T01:22:46.265Z
+closed_at: 2026-05-13T01:22:46.260Z
+close_reason: "Rewrote pip precedence chain to reflect actual pip behavior: CLI > PIP_* env > PIP_CONFIG_FILE > site > user > global INI configs. Removed false claim that pip reads pyproject.toml [tool.pip] / setup.cfg. Updated 'Operational conclusion' to distinguish pip (project-local files are not a pip config source) from uv (project config is a real layer)."
 ---
 # Correct pip config precedence in PyPI research doc
 

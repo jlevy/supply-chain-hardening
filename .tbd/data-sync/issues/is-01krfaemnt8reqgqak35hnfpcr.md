@@ -3,9 +3,9 @@ type: is
 id: is-01krfaemnt8reqgqak35hnfpcr
 title: Replace UV_ONLY_BINARY with UV_NO_BUILD and only-binary project config
 kind: bug
-status: open
+status: closed
 priority: 0
-version: 2
+version: 4
 labels:
   - correctness
   - pypi
@@ -14,7 +14,9 @@ dependencies:
     target: is-01krfamntd3hqvcdk8058xcj9q
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:05:42.713Z
-updated_at: 2026-05-13T00:09:13.313Z
+updated_at: 2026-05-13T01:22:01.599Z
+closed_at: 2026-05-13T01:22:01.598Z
+close_reason: Replaced UV_ONLY_BINARY with UV_NO_BUILD across hardening-pypi.md and research-pypi. Added documentation note explaining the env-var vs project-config split (UV_NO_BUILD env var; only-binary in [tool.uv.pip] for project-level only-binary semantics). Remaining mentions in research doc are explanatory ('uv does not expose UV_ONLY_BINARY').
 ---
 # Replace UV_ONLY_BINARY with correct uv controls
 

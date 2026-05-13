@@ -3,16 +3,64 @@ type: is
 id: is-01krfahsyw84qanr6wp94b9nf2
 title: Improve verification commands to prove env vars are actually active
 kind: task
-status: open
+status: closed
 priority: 2
-version: 1
+version: 3
 labels:
   - docs
   - verification
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:07:26.428Z
-updated_at: 2026-05-13T00:07:26.428Z
+updated_at: 2026-05-13T01:36:28.550Z
+closed_at: 2026-05-13T01:36:28.545Z
+close_reason: |-
+  Improved verify sections across hardening-npm.md, hardening-pypi.md, and hardening-go.md to use 'env | grep' for shell-state checks alongside the tool-specific config-get commands. Added explicit note in npm and pypi guides that env-var-only setups are not visible to GUI-launched agents / non-interactive subprocesses and that confirmation should happen in the agent's own process. PyPI guide also gained a behaviour-based dry-run check (uv pip install --dry-run against a known sdist-only package should fail under UV_NO_BUILD) earlier under sch-oaei. Go guide notes the difference between shell env and AR='ar'
+  CC='cc'
+  CGO_CFLAGS='-O2 -g'
+  CGO_CPPFLAGS=''
+  CGO_CXXFLAGS='-O2 -g'
+  CGO_ENABLED='1'
+  CGO_FFLAGS='-O2 -g'
+  CGO_LDFLAGS='-O2 -g'
+  CXX='c++'
+  GCCGO='gccgo'
+  GO111MODULE=''
+  GOARCH='arm64'
+  GOARM64='v8.0'
+  GOAUTH='netrc'
+  GOBIN=''
+  GOCACHE='/Users/levy/Library/Caches/go-build'
+  GOCACHEPROG=''
+  GODEBUG=''
+  GOENV='/Users/levy/Library/Application Support/go/env'
+  GOEXE=''
+  GOEXPERIMENT=''
+  GOFIPS140='off'
+  GOFLAGS=''
+  GOGCCFLAGS='-fPIC -arch arm64 -pthread -fno-caret-diagnostics -Qunused-arguments -fmessage-length=0 -ffile-prefix-map=/var/folders/ms/fjn8hgyd24d3jv6w65dw37hh0000gp/T/go-build312874446=/tmp/go-build -gno-record-gcc-switches -fno-common'
+  GOHOSTARCH='arm64'
+  GOHOSTOS='darwin'
+  GOINSECURE=''
+  GOMOD='/dev/null'
+  GOMODCACHE='/Users/levy/wrk/gowork/pkg/mod'
+  GONOPROXY=''
+  GONOSUMDB=''
+  GOOS='darwin'
+  GOPATH='/Users/levy/wrk/gowork'
+  GOPRIVATE=''
+  GOPROXY='https://proxy.golang.org,direct'
+  GOROOT='/opt/homebrew/Cellar/go/1.24.3/libexec'
+  GOSUMDB='sum.golang.org'
+  GOTELEMETRY='local'
+  GOTELEMETRYDIR='/Users/levy/Library/Application Support/go/telemetry'
+  GOTMPDIR=''
+  GOTOOLCHAIN='auto'
+  GOTOOLDIR='/opt/homebrew/Cellar/go/1.24.3/libexec/pkg/tool/darwin_arm64'
+  GOVCS=''
+  GOVERSION='go1.24.3'
+  GOWORK=''
+  PKG_CONFIG='pkg-config' persisted config.
 ---
 # Improve verification commands to prove env vars are actually active
 

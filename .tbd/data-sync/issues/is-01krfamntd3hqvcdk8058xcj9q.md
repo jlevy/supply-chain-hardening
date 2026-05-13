@@ -3,9 +3,9 @@ type: is
 id: is-01krfamntd3hqvcdk8058xcj9q
 title: Add doc-lint CI job that validates env-var names against an allow-list
 kind: feature
-status: open
+status: closed
 priority: 3
-version: 2
+version: 4
 labels:
   - ci
   - maintenance
@@ -14,7 +14,9 @@ dependencies:
     target: is-01krfamnywbk25vg5gsv70j625
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:09:00.492Z
-updated_at: 2026-05-13T00:09:13.428Z
+updated_at: 2026-05-13T01:41:03.362Z
+closed_at: 2026-05-13T01:41:03.357Z
+close_reason: Created tests/known-env-vars.txt (allow-list of 27 known package-manager env vars), tests/validate-docs.py (stdlib-only PEP 723 script that greps the markdown for env-var-shaped tokens and fails on unknown names), and .github/workflows/doc-lint.yml (runs on PRs touching .md / allow-list / validator). Validator passes on the current repo. Allow-list includes a 'Documented-as-not-supported' section for UV_ONLY_BINARY so the docs can warn about it without false-failing the lint. Added maintenance note to self-update-instructions.md.
 ---
 # Add doc-lint CI job that validates env-var names against package-manager docs
 

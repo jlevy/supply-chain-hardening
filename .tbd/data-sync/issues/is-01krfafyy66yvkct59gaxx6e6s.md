@@ -3,16 +3,18 @@ type: is
 id: is-01krfafyy66yvkct59gaxx6e6s
 title: Surface Go toolchain CVE (Step 0) and GOTOOLCHAIN=local in operational playbook
 kind: task
-status: open
+status: closed
 priority: 1
-version: 1
+version: 3
 labels:
   - correctness
   - go
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:06:25.989Z
-updated_at: 2026-05-13T00:06:25.989Z
+updated_at: 2026-05-13T01:27:46.935Z
+closed_at: 2026-05-13T01:27:46.931Z
+close_reason: "Added Step 0 to hardening-go.md: upgrade to Go 1.25.10 / 1.26.3 for CVE-2026-42501 (checksum DB bypass), regenerate go.sum from trusted sources, run go mod verify. Documented GOTOOLCHAIN=local as commented strict-mode option in the hardening script; explicit that it's defense-in-depth, not a substitute for the upgrade."
 ---
 # Surface Go toolchain-proxy CVE (Step 0) and GOTOOLCHAIN=local option in operational playbook
 

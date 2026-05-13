@@ -3,9 +3,9 @@ type: is
 id: is-01krfaben9ca381zwmq8ejcsge
 title: Address senior engineering review of supply chain hardening guidebook
 kind: epic
-status: open
+status: closed
 priority: 1
-version: 22
+version: 23
 labels: []
 dependencies: []
 child_order_hints:
@@ -30,7 +30,9 @@ child_order_hints:
   - is-01krfamp3a8kckmzq8687fcfy2
   - is-01krfamp7yt4dk01fa7wf9w24y
 created_at: 2026-05-13T00:03:58.248Z
-updated_at: 2026-05-13T00:09:00.925Z
+updated_at: 2026-05-13T01:41:42.746Z
+closed_at: 2026-05-13T01:41:42.744Z
+close_reason: "All 20 sub-beads closed. Repository now: (HIGH) UV_ONLY_BINARY replaced with UV_NO_BUILD, pip precedence corrected, pnpm config-source semantics split into npm/pnpm subsections, pending-citation watch-list rows moved to Unverified section. (MEDIUM-HIGH) npm/pnpm naming cheat-sheet added; Go Step 0 toolchain CVE; cool-off framing tightened across README and portable doc; audit_npm.py reviewed (added backoff, MAL exit code 3). (MEDIUM) Strict-mode doc, SECURITY_MODEL.md, untrusted-repo-first-run.md, AGENTS.md agent rules with audit-log redaction; verify commands improved; CI examples pinned with test commands; ecosystem fine-grained corrections (npm ci, pnpm strictDepBuilds, dep confusion, proc-macros, GOPRIVATE/replace policy); language hyperbole bounded. (LOW) Incident response normalised to 8 steps across all four playbooks; doc-lint CI with known-env-vars allow-list catches the UV_ONLY_BINARY-class bug; MAINTENANCE.md last-verified table; watch list split into actionable vs contextual."
 ---
 # Senior Engineering Review Remediation (2026-05-12)
 

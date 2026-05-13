@@ -3,9 +3,9 @@ type: is
 id: is-01krfaen4bge0w4d99bb50mfag
 title: Move pending-citation rows out of canonical compromised-packages table
 kind: bug
-status: open
+status: closed
 priority: 1
-version: 2
+version: 4
 labels:
   - correctness
   - watch-list
@@ -14,7 +14,9 @@ dependencies:
     target: is-01krfamp3a8kckmzq8687fcfy2
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:05:43.178Z
-updated_at: 2026-05-13T00:09:12.713Z
+updated_at: 2026-05-13T01:25:34.212Z
+closed_at: 2026-05-13T01:25:34.203Z
+close_reason: Removed 'pending direct citation' rows from canonical table. Created new 'Unverified / Pending Verification' section listing the two Aqua Trivy / Bitwarden CLI items with what is known vs missing. Canonical table now only contains rows with exact pkg@version, dates, and multi-source references.
 ---
 # Move "pending direct citation" rows out of canonical compromised-packages table
 

@@ -3,16 +3,18 @@ type: is
 id: is-01krfafyses9nwj5vv4ycc8f2j
 title: Clarify npm before vs min-release-age and the npm/pnpm naming split
 kind: task
-status: open
+status: closed
 priority: 1
-version: 1
+version: 3
 labels:
   - correctness
   - npm
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:06:25.834Z
-updated_at: 2026-05-13T00:06:25.834Z
+updated_at: 2026-05-13T01:26:25.152Z
+closed_at: 2026-05-13T01:26:25.145Z
+close_reason: "Added 'Names And Units Differ' cheat-sheet table to both hardening-npm.md (Step 3) and research-npm doc (Control 2 section). Documents: npm BEFORE (ISO date), npm MIN_RELEASE_AGE (days, 11.10+), pnpm MINIMUM_RELEASE_AGE (minutes, 10.16+). Explicit don't-set-both rule for npm. Bypass example covers all three variants."
 ---
 # Clarify npm `before` vs `min-release-age` and the npm-vs-pnpm naming split
 

@@ -3,16 +3,18 @@ type: is
 id: is-01krfak4z9c33hyvqkgjg77vw2
 title: Normalise per-playbook incident-response sections to a consistent eight-step checklist
 kind: task
-status: open
+status: closed
 priority: 3
-version: 1
+version: 3
 labels:
   - docs
   - incident-response
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:08:10.472Z
-updated_at: 2026-05-13T00:08:10.472Z
+updated_at: 2026-05-13T01:38:45.525Z
+closed_at: 2026-05-13T01:38:45.520Z
+close_reason: "Normalised all four 'If You Have Hits' sections to a consistent 8-step shape: (1) Identify scope, (2) Preserve evidence before cleanup, (3) Rotate tokens by category, (4) Check persistence mechanisms specific to payload, (5) Remove or downgrade dependency, (6) Regenerate lockfile from trusted sources, (7) Re-run scanner to confirm clean, (8) Open supply-chain-audit-log.md entry. Each playbook keeps its ecosystem-specific details inlined under the matching step (e.g., npm has SHA1HULUD runner check; Cargo has [patch.crates-io] guidance; PyPI has .pth file detection; Go has Rekoobe SSH-backdoor checks)."
 ---
 # Make per-playbook incident-response sections consistent
 

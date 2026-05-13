@@ -3,16 +3,18 @@ type: is
 id: is-01krfafz2rnkf83bz2z9pharb3
 title: Tighten cool-off-across-all-package-managers framing in README and portable doc
 kind: task
-status: open
+status: closed
 priority: 1
-version: 1
+version: 3
 labels:
   - correctness
   - docs
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:06:26.135Z
-updated_at: 2026-05-13T00:06:26.135Z
+updated_at: 2026-05-13T01:29:06.146Z
+closed_at: 2026-05-13T01:29:06.142Z
+close_reason: Rewrote README.md 'Why The Hardening Pattern Is Stable' to distinguish ecosystems with native release-age gating (npm/PyPI) from those that rely on lockfile+human-review (Cargo/Go). Added per-ecosystem table of primary controls. Same fix applied in SUPPLY-CHAIN-SECURITY.md Rule 1 (split npm/PyPI vs Cargo/Go guidance).
 ---
 # Tighten the "cool-off across all main package managers" framing
 

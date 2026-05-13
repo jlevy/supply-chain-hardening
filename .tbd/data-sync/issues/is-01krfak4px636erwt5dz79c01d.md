@@ -3,16 +3,18 @@ type: is
 id: is-01krfak4px636erwt5dz79c01d
 title: Add SECURITY_MODEL.md describing the layered defense model (L1-L6)
 kind: feature
-status: open
+status: closed
 priority: 2
-version: 1
+version: 3
 labels:
   - docs
   - architecture
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:08:10.204Z
-updated_at: 2026-05-13T00:08:10.204Z
+updated_at: 2026-05-13T01:33:48.393Z
+closed_at: 2026-05-13T01:33:48.392Z
+close_reason: "Created SECURITY_MODEL.md naming the six layers (developer defaults / project policy / CI / registry-proxy / sandbox / IR). Honest about scope: L1-L3 and L6 live in this repo; L5 has a recipe (untrusted-repo-first-run.md); L4 is named as recommended posture but org-mirror setup is out of scope. Linked from README.md 'What This Repo Is' section."
 ---
 # Add SECURITY_MODEL.md describing the layered defense model
 

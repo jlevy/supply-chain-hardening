@@ -3,16 +3,18 @@ type: is
 id: is-01krfahtfsx6pqz8qa4n9cdpk9
 title: Tighten unbounded language (defeats nearly all, neutralises) in README and portable doc
 kind: task
-status: open
+status: closed
 priority: 2
-version: 1
+version: 3
 labels:
   - docs
   - language
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:07:26.969Z
-updated_at: 2026-05-13T00:07:26.969Z
+updated_at: 2026-05-13T01:29:06.269Z
+closed_at: 2026-05-13T01:29:06.268Z
+close_reason: "Replaced 'defeats nearly every named incident' / 'neutralises nearly all of it' in README and SUPPLY-CHAIN-SECURITY.md with bounded language: 'neutralises the dominant fast-yanked-incident pattern.' Added explicit list of attack classes the cool-off does not neutralise: long-lived typosquats (BoltDB ~3 years; ctx ~10 days), pre-captured lockfile entries, runtime payloads on import/build."
 ---
 # Tighten unbounded language ("defeats nearly all of it", etc.)
 

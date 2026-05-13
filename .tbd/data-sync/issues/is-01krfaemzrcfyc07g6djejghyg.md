@@ -3,16 +3,18 @@ type: is
 id: is-01krfaemzrcfyc07g6djejghyg
 title: Fix pnpm config-source semantics in npm research doc
 kind: bug
-status: open
+status: closed
 priority: 0
-version: 1
+version: 3
 labels:
   - correctness
   - npm
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:05:43.032Z
-updated_at: 2026-05-13T00:05:43.032Z
+updated_at: 2026-05-13T01:24:30.970Z
+closed_at: 2026-05-13T01:24:30.965Z
+close_reason: Split npm/pnpm config precedence into two subsections. Documented that current pnpm only reads .npmrc for auth/registry; non-auth settings come from CLI > env > pnpm-workspace.yaml > ~/.config/pnpm/config.yaml. Verified against pnpm.io/settings. npm chain unchanged (it does honor layered .npmrc).
 ---
 # Fix pnpm config-source semantics in npm research doc
 

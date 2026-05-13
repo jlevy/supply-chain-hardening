@@ -3,9 +3,9 @@ type: is
 id: is-01krfamnn62bzc1tv8amwjx2vy
 title: Code-review scripts/audit_npm.py (OSV API, scoped parsing, rate limit, exit codes)
 kind: task
-status: open
+status: closed
 priority: 1
-version: 1
+version: 3
 labels:
   - correctness
   - npm
@@ -13,7 +13,9 @@ labels:
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:09:00.321Z
-updated_at: 2026-05-13T00:09:00.321Z
+updated_at: 2026-05-13T01:31:39.452Z
+closed_at: 2026-05-13T01:31:39.446Z
+close_reason: "Reviewed scripts/audit_npm.py. Added: (1) bounded exponential backoff on OSV HTTP requests (4 attempts, 1s/2s/4s delays, retries 408/429/5xx and URLError). (2) Distinct exit code 3 for MALICIOUS-tagged advisories, keeping 1 for ordinary CVE. Verified all four exit codes work: lodash@4.17.21 -> 1, chalk@5.6.1 -> 3 (MAL-2025-46969), express@4.21.0 -> 0, bad spec -> 2. Updated scripts/README.md and CLI epilog to document the new exit-code semantics. Original strengths kept as-is: scoped-package parsing via rfind('@'), MAL-* only tagging (not summary heuristic), explicit affected.versions filter to avoid over-broad SEMVER matches, stdlib-only with PEP 723 deps=[]."
 ---
 # Code-review scripts/audit_npm.py
 

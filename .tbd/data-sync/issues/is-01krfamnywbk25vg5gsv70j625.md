@@ -3,16 +3,18 @@ type: is
 id: is-01krfamnywbk25vg5gsv70j625
 title: Add 'Last verified against package-manager versions' table and maintenance checklist
 kind: task
-status: open
+status: closed
 priority: 3
-version: 1
+version: 3
 labels:
   - maintenance
   - docs
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:09:00.635Z
-updated_at: 2026-05-13T00:09:00.635Z
+updated_at: 2026-05-13T01:41:31.452Z
+closed_at: 2026-05-13T01:41:31.447Z
+close_reason: Created MAINTENANCE.md with 'Last Verified Against' table (npm 11.x, pnpm 10.x, pip 26.1, uv latest, cargo 1.83+, go 1.25.10/1.26.3) and a six-step Re-Verify On Major-Version Bump checklist that pairs with tests/validate-docs.py. Linked from README.md Maintaining section. Cross-referenced from self-update-instructions.md.
 ---
 # Add "Last verified against package-manager versions" table and maintenance checklist
 

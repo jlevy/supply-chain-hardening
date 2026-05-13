@@ -3,16 +3,18 @@ type: is
 id: is-01krfamp7yt4dk01fa7wf9w24y
 title: Strengthen AGENTS.md / SUPPLY-CHAIN-SECURITY.md agent rules and audit-log redaction
 kind: task
-status: open
+status: closed
 priority: 2
-version: 1
+version: 3
 labels:
   - docs
   - agents
 dependencies: []
 parent_id: is-01krfaben9ca381zwmq8ejcsge
 created_at: 2026-05-13T00:09:00.925Z
-updated_at: 2026-05-13T00:09:00.925Z
+updated_at: 2026-05-13T01:34:32.109Z
+closed_at: 2026-05-13T01:34:32.104Z
+close_reason: "Added four new agent rules to AGENTS.md Safety Rule block: untrusted-repo sandbox requirement (links to untrusted-repo-first-run.md), npx/dlx/bunx/uvx/go-run ban without pin+review, no curl|sh from untrusted sources, default Balanced / strict-when-declared mode rule (links to strict-mode.md, never self-grant Emergency Exception). Added Redaction Rules section to audit-log template: no live tokens/secrets/keys, replace with [REDACTED] markers, redact internal hostnames when sharing."
 ---
 # Strengthen AGENTS.md / SUPPLY-CHAIN-SECURITY.md agent rules
 
