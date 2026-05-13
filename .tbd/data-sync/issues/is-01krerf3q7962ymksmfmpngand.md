@@ -5,14 +5,14 @@ title: Verify npm per-package-manager coverage matrix
 kind: task
 status: closed
 priority: 1
-version: 2
+version: 5
 labels:
   - validation
   - npm
 dependencies: []
 created_at: 2026-05-12T18:51:23.750Z
-updated_at: 2026-05-12T20:02:41.430Z
-closed_at: 2026-05-12T20:02:41.429Z
-close_reason: "Spot-checked per-package-manager matrix. pnpm minimumReleaseAge confirmed >=10.16.0 per pnpm.io/settings. pnpm ignoreScripts confirmed. NPM_CONFIG_FROZEN_LOCKFILE verified working empirically (pnpm config get frozen-lockfile returns true on pnpm 10.28.2). Note: onlyBuiltDependencies was in pnpm-workspace.yaml in v10 (matrix should mention this); replaced by allowBuilds in v11 per docs."
+updated_at: 2026-05-12T20:55:13.217Z
+closed_at: 2026-05-12T20:55:13.216Z
+close_reason: "Verified per-package-manager coverage matrix against vendor docs. Found and fixed 5 discrepancies: (1) npm 11 minimumReleaseAge row was 'warns and ignores' but npm 11.10+ ships min-release-age (days); corrected. (2) yarn 2+ row was blank for rolling release-age but yarn berry >=4.10 has npmMinimalAgeGate (minutes); added. (3) bun row was blank for rolling release-age but bun supports minimumReleaseAge in bunfig.toml (seconds); added. (4) pnpm 11 allowBuilds shown as array but is actually a map {name: bool}; corrected code sample and matrix cell. (5) yarn berry has npmPreapprovedPackages for opt-in script allowlist; added to matrix. Also fixed fish shell recipe missing GNU date fallback for Linux users. Citations: pnpm.io/settings, pnpm.io/blog/releases/11.0, pnpm.io/migration, docs.npmjs.com/cli/v11/using-npm/config, yarnpkg.com/configuration/yarnrc, socket.dev/blog/npm-introduces-minimumreleaseage, mondoo.com/blog/npm-supply-chain-security-package-manager-defenses-2026, bun.com/docs/guides/install/trusted"
 ---
 Verify the matrix in Part 3 of research-npm-supply-chain-hardening.md: each cell for npm 11, pnpm >=10.16, yarn 1.x, yarn 2+, bun. before=, minimumReleaseAge, ignore-scripts, frozen-lockfile, opt-in script allowlist (onlyBuiltDependencies/allowBuilds/trustedDependencies). Test claims against vendor docs.
