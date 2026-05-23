@@ -11,6 +11,24 @@ curated watch list of recent compromises across npm, PyPI, crates.io, and Go mod
 Read the [Safety Note](#safety-note) before applying anything, and validate every recipe
 against the [Authoritative Sources](#authoritative-sources).
 
+### Which Path Do I Follow?
+
+- **Consumer-only repo** (you install dependencies, you do not publish packages): apply
+  the ecosystem [playbook](#harden-a-single-ecosystem), commit lockfiles, and add a CI
+  scanner gate.
+- **Repo that publishes packages or releases via GitHub Actions:** apply
+  [`guidelines/hardening-ci-cd.md`](guidelines/hardening-ci-cd.md) first, then the
+  ecosystem playbook. The minimum GitHub Actions defaults: top-level
+  `permissions: contents: read`; no `pull_request_target` workflow that checks out PR
+  head code; restore-only cache on PRs (and avoid implicit cache saves from setup
+  actions); SHA-pin actions; OIDC trusted publishing plus npm staged publishing; publish
+  job behind a GitHub Environment with required reviewers.
+- **Agent working in an untrusted repo:** follow
+  [`guidelines/untrusted-repo-first-run.md`](guidelines/untrusted-repo-first-run.md)
+  before any install / build / test / run command.
+- **Machine with publish tokens or production access:** enter Strict mode
+  ([`guidelines/strict-mode.md`](guidelines/strict-mode.md)).
+
 ### Harden A Single Ecosystem
 
 Pick the playbook for the ecosystem you use.
@@ -200,10 +218,19 @@ publishing, runner hardening, provenance monitoring).
 
 **Never install or upgrade to a package version less than 14 days old, unless a
 documented exception applies.** This is the single default this repo recommends across
-every ecosystem, and it is what the per-ecosystem playbooks configure
-(`NPM_CONFIG_MINIMUM_RELEASE_AGE=20160`, `UV_EXCLUDE_NEWER="14 days"`,
-`PIP_UPLOADED_PRIOR_TO="P14D"`, and the lockfile-discipline equivalents for Cargo and
-Go).
+every ecosystem.
+The control differs by tool (the per-ecosystem playbooks have the exact,
+version-specific recipes and verification):
+
+| Tool | 14-day control |
+| --- | --- |
+| npm (any) | `NPM_CONFIG_BEFORE=<now-minus-14d>` |
+| npm 11.10+ | `NPM_CONFIG_MIN_RELEASE_AGE=14` (days) |
+| pnpm 10.16-10.x | `NPM_CONFIG_MINIMUM_RELEASE_AGE=20160` (minutes) |
+| pnpm 11+ | `minimumReleaseAge: 20160` in `pnpm-workspace.yaml` (pnpm 11 ignores `NPM_CONFIG_*`) |
+| uv | `UV_EXCLUDE_NEWER="14 days"` |
+| pip 26.1+ | `PIP_UPLOADED_PRIOR_TO="P14D"` |
+| Cargo / Go | no native gate: committed lockfile + `--locked` / `-mod=readonly` + human review before re-resolution |
 
 **The general principle.** A cool-off works because the registry and researchers detect
 and yank malicious versions while legitimate versions keep accruing age.

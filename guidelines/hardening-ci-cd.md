@@ -154,10 +154,9 @@ A stolen publish token is what the worms self-propagate with.
 Remove the standing token.
 
 - **Use OIDC Trusted Publishing.** npm Trusted Publishing (GA July 2025; requires npm
-
-  > = 11.5.1 and Node >= 22.14.0) and PyPI Trusted Publishers mint a short-lived,
-  > workflow-scoped credential per run.
-  > No `NODE_AUTH_TOKEN` / API token is stored.
+  11.5.1+ and Node 22.14.0+) and PyPI Trusted Publishers mint a short-lived,
+  workflow-scoped credential per run.
+  No `NODE_AUTH_TOKEN` / API token is stored.
 
   ```yaml
   permissions:

@@ -391,8 +391,8 @@ Refuses to install any version published after a rolling cutoff.
 - **poetry (>=2.4.0):** `solver.min-release-age` in Poetry’s config.
   Filters package versions by upload timestamp during dependency resolution.
   Requires the package source to expose upload timestamps.
-  Configure with `poetry config solver.min-release-age 7` (days).
-  Available since Poetry 2.4.0 (May 2026).
+  Configure with `poetry config solver.min-release-age 14` (days; the repo-wide
+  default). Available since Poetry 2.4.0 (May 2026).
 - **pipx:** inherits from pip or uv depending on backend; set the corresponding env var.
 - **conda/mamba:** no native equivalent.
 
@@ -869,8 +869,10 @@ done
 
 ### Per-Project (When Adding Or Removing Dependencies)
 
-- [ ] To intentionally install a fresh package, explicitly unset the quarantine
-  variables per command, visibly: `UV_EXCLUDE_NEWER= UV_NO_BUILD= uv add some-pkg`.
+- [ ] To intentionally install a fresh package, unset only the age gate per command,
+  visibly: `UV_EXCLUDE_NEWER= uv add some-pkg`. Keep `UV_NO_BUILD` set; unset it
+  (`UV_NO_BUILD=`) only for the separate, louder case of a package that has no wheel and
+  must be built from source.
 - [ ] After lockfile change, run `osv-scanner scan source -L <lockfile>` or `pip-audit`.
 - [ ] Commit lockfile.
 
@@ -894,11 +896,13 @@ done
 
 ## Common Questions
 
-**Does the date quarantine block legitimate security patches that landed in the last 7
+**Does the date quarantine block legitimate security patches that landed in the last 14
 days?** Yes, by design.
-The trade-off: 14 days of delayed security patches versus zero days of supply-chain
-malware exposure. Historically the latter has been the bigger source of incidents for
-typical projects. For genuinely urgent CVEs (a 0-day RCE), opt out per command.
+The trade-off: 14 days of delayed security patches versus the supply-chain-malware
+exposure window. Historically the latter has been the bigger source of incidents for
+typical projects. For a genuinely urgent CVE, take the documented exception (opt out per
+command, keeping `UV_NO_BUILD` / `PIP_ONLY_BINARY` set unless a source build is truly
+unavoidable), pin the exact version, and log it.
 
 **How does this interact with Renovate or Dependabot?** Renovate supports
 `minimumReleaseAge: "14 days"` in `renovate.json`, which applies to all ecosystems

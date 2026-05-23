@@ -77,11 +77,25 @@ the macOS launchd / Windows User-wide instructions).
 
 ### Step 4: When You Intentionally Need A Fresh Package
 
-Unset the quarantine env vars per command, visibly:
+Unset **only the age gate** per command, visibly, and keep the sdist/no-build protection
+in place.
+A fresh-version exception (e.g. an urgent CVE patch) does not need source-build
+execution, so do not turn it into one:
 
 ```sh
-UV_EXCLUDE_NEWER= UV_NO_BUILD= uv pip install some-pkg
-PIP_UPLOADED_PRIOR_TO= PIP_ONLY_BINARY= pip install some-pkg
+# Fresh wheel only: bypass the age gate, keep no-build / wheel-only enforcement.
+UV_EXCLUDE_NEWER= uv pip install some-pkg
+PIP_UPLOADED_PRIOR_TO= pip install some-pkg
+```
+
+Only if a package genuinely has no wheel and must be built from source, take the
+separate, louder build exception (review the `setup.py` / `build` first, ideally in a
+sandbox):
+
+```sh
+# Source build exception: scope it narrowly and review the build code first.
+UV_NO_BUILD= uv pip install some-sdist-only-pkg
+PIP_ONLY_BINARY= pip install some-sdist-only-pkg
 ```
 
 ### Notes And Caveats

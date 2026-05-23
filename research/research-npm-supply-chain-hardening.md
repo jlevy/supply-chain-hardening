@@ -286,34 +286,38 @@ LOWEST PRIORITY   →  npm builtin defaults
 
 ### pnpm (Workspace YAML + Limited `.npmrc`)
 
-Current pnpm does **not** read most settings from `.npmrc`. As documented at
-`pnpm.io/settings`, pnpm reads only auth and registry settings from `.npmrc`. All other
-settings (hoistPattern, nodeLinker, shamefullyHoist, install controls, build allowlists,
-and similar) must come from:
+pnpm does **not** read most settings from `.npmrc`. As documented at `pnpm.io/settings`,
+pnpm reads only auth and registry settings from `.npmrc`. All other settings
+(hoistPattern, nodeLinker, install controls, build allowlists, and similar) come from:
 
 ```
 HIGHEST PRIORITY  →  command-line flag
-                  →  environment variable (NPM_CONFIG_* or npm_config_*)
+                  →  environment variable (see version note below)
                   →  project pnpm-workspace.yaml
                   →  global ~/.config/pnpm/config.yaml
 LOWEST PRIORITY   →  pnpm builtin defaults
 ```
 
-- `.npmrc` continues to govern auth (`_authToken`, `_auth`) and registry routing
-  (`registry=`, `@scope:registry=`) for both npm and pnpm.
+- **Env-var prefix changed in pnpm 11.** pnpm 10.x reads `NPM_CONFIG_*` /
+  `npm_config_*`. pnpm 11 (released 2026-04-28) **no longer reads `npm_config_*`**; its
+  env prefix is `PNPM_CONFIG_*` / `pnpm_config_*` (e.g.
+  `PNPM_CONFIG_MINIMUM_RELEASE_AGE`). See the
+  [pnpm 11 release notes](https://pnpm.io/blog/releases/11.0). Documenting the policy in
+  `pnpm-workspace.yaml` avoids the prefix-rename trap entirely.
+- `.npmrc` governs auth (`_authToken`, `_auth`) and registry routing (`registry=`,
+  `@scope:registry=`) for both npm and pnpm.
   Treat it as the auth/registry file, not the policy file.
-- For pnpm, project-level policy (frozen lockfile, allowed build scripts, etc.)
-  lives in `pnpm-workspace.yaml` at the workspace root, not `.npmrc`.
+- For pnpm, project-level policy (release age, frozen lockfile, allowed build scripts,
+  etc.) lives in `pnpm-workspace.yaml` at the workspace root, not `.npmrc`.
 
 ### Operational Conclusion
 
-Environment variables remain the cross-tool way to enforce process-level defaults.
-They beat `.npmrc` (for npm) and `pnpm-workspace.yaml` (for pnpm) and are the only layer
-that survives the “third-party repo ships a config override” attack.
-
-Use `.npmrc` as a fallback only for processes that do not source shell init (for
-example, launchd-spawned background agents).
-For pnpm, prefer `~/.config/pnpm/config.yaml` for the same fallback purpose.
+Environment variables are the cross-tool way to enforce process-level defaults, and they
+beat any project-local config file, so they survive the “third-party repo ships a config
+override” attack. Use the right prefix for the tool: `NPM_CONFIG_*` for npm and pnpm
+10.x, `PNPM_CONFIG_*` for pnpm 11. For pnpm, the durable and reviewable source of truth
+is `pnpm-workspace.yaml` (project) or `~/.config/pnpm/config.yaml` (global); reserve
+`.npmrc` for auth/registry only.
 
 ## The Four-Control Hardening Pattern
 
@@ -328,26 +332,31 @@ slides forward with the calendar.
 
 - **Catches:** every recent attack.
   Malicious versions are detected within minutes-to-hours and yanked, but they remain
-  “published after my cutoff” for 7+ days regardless.
+  “published after my cutoff” for 14+ days regardless.
 - **Bypass per command:** `NPM_CONFIG_BEFORE= pnpm install`, or
   `pnpm install --before=2026-06-01T00:00:00Z` for an explicit date.
 
-### Control 2: `NPM_CONFIG_MINIMUM_RELEASE_AGE` (Rolling Window)
+### Control 2: Rolling Release-Age Window (`minimumReleaseAge`)
 
 Native pnpm feature added in **pnpm 10.16.0**, released Q3 2025 in direct response to
 the qix incident. Value is in minutes; `20160` is 14 days.
 Unlike `before=`, this is a per-version property: a version published 6 days ago is
-rejected even after the system clock advances another day, until that *version* turns 7
+rejected even after the system clock advances another day, until that *version* turns 14
 days old. pnpm checks each candidate version individually.
 
+- **How to set it:** pnpm 10.x reads `NPM_CONFIG_MINIMUM_RELEASE_AGE=20160`; pnpm 11
+  reads `minimumReleaseAge: 20160` from `pnpm-workspace.yaml` (or
+  `PNPM_CONFIG_MINIMUM_RELEASE_AGE`), **not** the `NPM_CONFIG_*` name.
+  pnpm 11 ships this on by default at `1440` (1 day); override to `20160`.
 - **Catches:** the same surface as `before=`, but strictly stronger for pnpm.
   Survives clock skew, does not drift if the variable stops being refreshed, does not
   need recomputation at shell start.
-- **Bypass per package:** add to `minimumReleaseAgeExclude` in `.npmrc`. For example, to
-  exempt your own workspace packages: `minimum-release-age-exclude[]=@my-org/*`.
+- **Bypass per package:** add to `minimumReleaseAgeExclude` (in `pnpm-workspace.yaml`
+  for pnpm 11; in `.npmrc` as `minimum-release-age-exclude[]=@my-org/*` for pnpm 10.x),
+  and only with the documented exception process.
 - **npm support:** npm 11.10+ ships `min-release-age` (note: different name, units in
   **days** not minutes).
-  Env var: `NPM_CONFIG_MIN_RELEASE_AGE=7`. Earlier npm 11.x versions warn “Unknown env
+  Env var: `NPM_CONFIG_MIN_RELEASE_AGE=14`. Earlier npm 11.x versions warn “Unknown env
   config” but still function.
   Use `before=` for npm versions below 11.10.
 
@@ -356,11 +365,12 @@ days old. pnpm checks each candidate version individually.
 The names and units differ across tools and across versions.
 Pick the row for your tool and version, then set exactly one release-age control.
 
-| Tool | Env var | Unit | Available in |
+| Tool | Setting (env var, or YAML key for pnpm 11) | Unit | Available in |
 | --- | --- | --- | --- |
 | npm (any) | `NPM_CONFIG_BEFORE` | absolute ISO 8601 date | all current npm |
 | npm 11.10+ | `NPM_CONFIG_MIN_RELEASE_AGE` | days (integer) | npm 11.10+ |
-| pnpm 10.16.0+ | `NPM_CONFIG_MINIMUM_RELEASE_AGE` | minutes (integer) | pnpm 10.16.0+ |
+| pnpm 10.16-10.x | `NPM_CONFIG_MINIMUM_RELEASE_AGE` | minutes (integer) | pnpm 10.16-10.x |
+| pnpm 11+ | `minimumReleaseAge` in `pnpm-workspace.yaml` (env: `PNPM_CONFIG_MINIMUM_RELEASE_AGE`) | minutes (integer) | pnpm 11+ |
 
 Rules:
 
@@ -368,13 +378,18 @@ Rules:
   once. Pick one based on npm version.
   If both are present npm’s behavior depends on the version and may be silently
   inconsistent.
-- For pnpm, `NPM_CONFIG_MINIMUM_RELEASE_AGE` is the pnpm-native control; pnpm also
-  honors `NPM_CONFIG_BEFORE`. The hardening script in this repo sets `BEFORE` for
-  npm/pnpm compatibility plus `MINIMUM_RELEASE_AGE` for pnpm’s stronger semantics; pnpm
-  uses the stricter of the two when both are set.
-- npm warns “Unknown env config 'minimum-release-age'” because that is the pnpm
-  spelling; it continues to function.
-  Do not “fix” the warning by renaming the variable away from the pnpm canonical name.
+- For **pnpm 10.x**, `NPM_CONFIG_MINIMUM_RELEASE_AGE` is the native control; pnpm 10.x
+  also honors `NPM_CONFIG_BEFORE`. The `~/.npm-hardening.sh` script sets `BEFORE` for
+  npm/pnpm-10 compatibility plus `MINIMUM_RELEASE_AGE` for pnpm’s stronger semantics;
+  pnpm uses the stricter of the two when both are set.
+- For **pnpm 11**, the `NPM_CONFIG_*` names are not read at all.
+  Set `minimumReleaseAge` in `pnpm-workspace.yaml` (or
+  `PNPM_CONFIG_MINIMUM_RELEASE_AGE`). pnpm 11 does not read `NPM_CONFIG_BEFORE` either;
+  rely on `minimumReleaseAge` (it ships on by default at `1440` = 1 day, so override to
+  `20160`).
+- On npm, the warning “Unknown env config 'minimum-release-age'” is expected (that is
+  the pnpm 10.x spelling); npm still functions.
+  Do not “fix” it by renaming the variable.
 
 ### Control 3: `NPM_CONFIG_IGNORE_SCRIPTS` (No Install Hooks)
 
