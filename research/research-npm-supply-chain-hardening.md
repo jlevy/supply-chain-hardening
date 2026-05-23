@@ -1,6 +1,6 @@
 # NPM Supply Chain Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -31,8 +31,11 @@ Bash, WSL).
 **Out of scope:** server-side npm registry mirroring (Verdaccio, JFrog Artifactory,
 Sonatype Nexus). Container image scanning.
 Runtime SBOM tracking.
-GitHub Actions `pull_request_target` mitigation (referenced briefly in attack-mechanism
-context only).
+GitHub Actions and publish-pipeline hardening (cache poisoning, `pull_request_target`,
+OIDC token theft, trusted/staged publishing, provenance verification) now have a
+dedicated cross-ecosystem guide:
+[`../guidelines/hardening-ci-cd.md`](../guidelines/hardening-ci-cd.md).
+This doc covers those vectors only as attack-mechanism context.
 
 * * *
 
@@ -42,9 +45,11 @@ The npm ecosystem has been under sustained, accelerating supply-chain attack sin
 August 2025. Recent waves use self-replicating worms that, after a single
 developer-credential phish, compromise hundreds of packages in hours via GitHub Actions
 trust boundaries and trusted-publisher flows.
-The most recent named incident at the time of writing, **TanStack on 2026-05-11**,
-pushed 84 malicious versions across 42 `@tanstack/*` packages within a six-minute window
-before detection.
+May 2026 alone saw four distinct npm incidents in nine days: **TanStack (2026-05-11)**,
+the **node-ipc** credential stealer (2026-05-14), the **Megalodon** mass GitHub-repo
+poisoning that reached `@tiledesk/tiledesk-server` (2026-05-18), and the **@antv Mini
+Shai-Hulud worm (2026-05-19)**, which compromised 639 versions across 323 packages in a
+~22-minute burst and was the first worm to forge valid Sigstore/SLSA provenance.
 
 ## What The Attacks Have In Common
 
@@ -66,7 +71,7 @@ primitives:
 
 **Common lifetime:** malicious versions live for minutes to a few hours before
 researchers detect them, the package is yanked or deprecated, and a clean version
-replaces it. A 7-day rolling quarantine is disproportionately effective: by the time a
+replaces it. A 14-day rolling quarantine is disproportionately effective: by the time a
 quarantined version becomes old enough to install, every named incident below has
 already been remediated by the upstream maintainer or by npm.
 
@@ -105,9 +110,14 @@ For example: `axios@1.14.0` not `1.14.1`, `debug@4.4.1` not `4.4.2`, `chalk@5.6.
 `5.6.1`.
 
 **Trend line:** through April 2026, attacks were roughly monthly.
-May 2026 saw two within a week.
-The 7-day quarantine pattern in Part 3 was designed around this cadence; the next attack
-will almost certainly fit the same profile.
+May 2026 saw four npm incidents in nine days (TanStack, node-ipc, Megalodon/Tiledesk,
+@antv). The 14-day quarantine pattern in Part 3 was designed around this cadence and
+still neutralises the fast-yanked install-time class.
+Two May incidents, however, point past the install side: node-ipc fired its payload at
+`require()` time rather than via an install script, and the @antv worm forged valid
+provenance and compromised the *publish* pipeline rather than a consumer.
+Those vectors are addressed in
+[`../guidelines/hardening-ci-cd.md`](../guidelines/hardening-ci-cd.md).
 
 ## TanStack Attack: Mechanism And Indicators (2026-05-11)
 
@@ -186,6 +196,64 @@ to a non-registry GitHub URL. Socket’s pipeline executed the payload in a sand
 Both reported publicly within hours; npm Security yanked the tarballs server-side;
 TanStack deprecated all 84 versions and rotated/purged their GitHub Actions caches.
 
+## @antv Mini Shai-Hulud: Mechanism And Indicators (2026-05-19)
+
+The @antv wave is the most significant npm worm since Shai-Hulud 2.0 and the first to
+defeat provenance verification.
+Microsoft Security and Socket published technical analyses within a day; npm took the
+rare step of a mass credential reset.
+
+**Scale and response**
+
+- 639 malicious versions across 323 unique packages, published in a ~22-minute automated
+  burst from the compromised `atool` maintainer account (which maintained 547 packages).
+- Initial footholds were dormant packages (`jest-canvas-mock`, `size-sensor`) inactive
+  for years, so a sudden new version with added lifecycle hooks was itself a tell.
+- GitHub removed 640 packages and invalidated **61,274 npm granular access tokens** that
+  had write permission and 2FA bypass, the largest npm credential reset to date.
+
+**First forged Sigstore / SLSA provenance**
+
+The worm called Fulcio and Rekor at runtime to mint a valid signing certificate and
+transparency-log entry for every package it propagated to, so infected versions showed a
+green “verified” provenance badge.
+The lesson, now baked into the [CI/CD guide](../guidelines/hardening-ci-cd.md): a valid
+attestation proves *which pipeline* built a package, not that the pipeline was honest.
+Provenance is a signal, not a guarantee.
+
+**Payload (file-level and behavioural IOCs)**
+
+- ~499 KB obfuscated JS triggered via a `preinstall` hook; execution chain
+  `node -> shell -> bun -> payload`; exits immediately unless running on GitHub Actions
+  on Linux.
+- Scrapes secrets from the `Runner.Worker` process memory by locating the PID via
+  `/proc` and grepping for `"...","isSecret":true` patterns, the same runner-memory
+  technique as TanStack.
+- Injects a sudoers rule (`runner ALL=(ALL) NOPASSWD:ALL`) and modifies `/etc/hosts`.
+- Tertiary persistence/exfil: creates public repos with the reversed description
+  `niagA oG eW ereH :duluH-iahS` (2,200+ observed).
+- Payload SHA-256: `a68dd1e6a6e35ec3771e1f94fe796f55dfe65a2b94560516ff4ac189390dfa1c`
+  and `fb5c97557230a27460fdab01fafcfabeaa49590bafd5b6ef30501aa9e0a51142`.
+- C2: `t.m-kosche[.]com:443`.
+
+**Representative package IOCs**
+
+`@antv/g@6.4.1`, `@antv/g@6.5.1`, `echarts-for-react@3.1.7`, `size-sensor@1.0.4`. The
+full list resolves via a GitHub Advisory Database search for `type:malware` across the
+affected scope (e.g. `GHSA-6fr3-r6r6-h4h9` for `@antv/g`).
+
+**node-ipc (2026-05-14): require()-time payload**
+
+Worth noting alongside @antv because it breaks a common assumption.
+`node-ipc@9.1.6`, `@9.2.3`, and `@12.0.1` carried an identical ~80 KB stealer appended
+to the CommonJS bundle `node-ipc.cjs`. It runs on `require("node-ipc")`, **not** via an
+install script, so `ignore-scripts=true` does not stop it.
+The account was taken over by re-registering an expired email domain
+(`atlantis-software.net`). Exfiltration was over DNS TXT queries to
+`sh.azurestaticprovider.net`, which evades HTTP egress filters.
+The defense here is the release-age quarantine (the bad versions were yanked within the
+cool-off window) plus lockfile review, not `ignore-scripts`.
+
 * * *
 
 # Part 3: Best Practices For Hardening
@@ -218,34 +286,38 @@ LOWEST PRIORITY   →  npm builtin defaults
 
 ### pnpm (Workspace YAML + Limited `.npmrc`)
 
-Current pnpm does **not** read most settings from `.npmrc`. As documented at
-`pnpm.io/settings`, pnpm reads only auth and registry settings from `.npmrc`. All other
-settings (hoistPattern, nodeLinker, shamefullyHoist, install controls, build allowlists,
-and similar) must come from:
+pnpm does **not** read most settings from `.npmrc`. As documented at `pnpm.io/settings`,
+pnpm reads only auth and registry settings from `.npmrc`. All other settings
+(hoistPattern, nodeLinker, install controls, build allowlists, and similar) come from:
 
 ```
 HIGHEST PRIORITY  →  command-line flag
-                  →  environment variable (NPM_CONFIG_* or npm_config_*)
+                  →  environment variable (see version note below)
                   →  project pnpm-workspace.yaml
                   →  global ~/.config/pnpm/config.yaml
 LOWEST PRIORITY   →  pnpm builtin defaults
 ```
 
-- `.npmrc` continues to govern auth (`_authToken`, `_auth`) and registry routing
-  (`registry=`, `@scope:registry=`) for both npm and pnpm.
+- **Env-var prefix changed in pnpm 11.** pnpm 10.x reads `NPM_CONFIG_*` /
+  `npm_config_*`. pnpm 11 (released 2026-04-28) **no longer reads `npm_config_*`**; its
+  env prefix is `PNPM_CONFIG_*` / `pnpm_config_*` (e.g.
+  `PNPM_CONFIG_MINIMUM_RELEASE_AGE`). See the
+  [pnpm 11 release notes](https://pnpm.io/blog/releases/11.0). Documenting the policy in
+  `pnpm-workspace.yaml` avoids the prefix-rename trap entirely.
+- `.npmrc` governs auth (`_authToken`, `_auth`) and registry routing (`registry=`,
+  `@scope:registry=`) for both npm and pnpm.
   Treat it as the auth/registry file, not the policy file.
-- For pnpm, project-level policy (frozen lockfile, allowed build scripts, etc.)
-  lives in `pnpm-workspace.yaml` at the workspace root, not `.npmrc`.
+- For pnpm, project-level policy (release age, frozen lockfile, allowed build scripts,
+  etc.) lives in `pnpm-workspace.yaml` at the workspace root, not `.npmrc`.
 
 ### Operational Conclusion
 
-Environment variables remain the cross-tool way to enforce process-level defaults.
-They beat `.npmrc` (for npm) and `pnpm-workspace.yaml` (for pnpm) and are the only layer
-that survives the “third-party repo ships a config override” attack.
-
-Use `.npmrc` as a fallback only for processes that do not source shell init (for
-example, launchd-spawned background agents).
-For pnpm, prefer `~/.config/pnpm/config.yaml` for the same fallback purpose.
+Environment variables are the cross-tool way to enforce process-level defaults, and they
+beat any project-local config file, so they survive the “third-party repo ships a config
+override” attack. Use the right prefix for the tool: `NPM_CONFIG_*` for npm and pnpm
+10.x, `PNPM_CONFIG_*` for pnpm 11. For pnpm, the durable and reviewable source of truth
+is `pnpm-workspace.yaml` (project) or `~/.config/pnpm/config.yaml` (global); reserve
+`.npmrc` for auth/registry only.
 
 ## The Four-Control Hardening Pattern
 
@@ -255,31 +327,36 @@ Apply all four.
 ### Control 1: `NPM_CONFIG_BEFORE` (Date-Pinned Cutoff)
 
 Refuses to install any version published after the given ISO-8601 timestamp.
-Supported by both `npm` and `pnpm`. Compute dynamically as “now minus 7 days” so it
+Supported by both `npm` and `pnpm`. Compute dynamically as “now minus 14 days” so it
 slides forward with the calendar.
 
 - **Catches:** every recent attack.
   Malicious versions are detected within minutes-to-hours and yanked, but they remain
-  “published after my cutoff” for 7+ days regardless.
+  “published after my cutoff” for 14+ days regardless.
 - **Bypass per command:** `NPM_CONFIG_BEFORE= pnpm install`, or
   `pnpm install --before=2026-06-01T00:00:00Z` for an explicit date.
 
-### Control 2: `NPM_CONFIG_MINIMUM_RELEASE_AGE` (Rolling Window)
+### Control 2: Rolling Release-Age Window (`minimumReleaseAge`)
 
 Native pnpm feature added in **pnpm 10.16.0**, released Q3 2025 in direct response to
-the qix incident. Value is in minutes; `10080` is 7 days.
+the qix incident. Value is in minutes; `20160` is 14 days.
 Unlike `before=`, this is a per-version property: a version published 6 days ago is
-rejected even after the system clock advances another day, until that *version* turns 7
+rejected even after the system clock advances another day, until that *version* turns 14
 days old. pnpm checks each candidate version individually.
 
+- **How to set it:** pnpm 10.x reads `NPM_CONFIG_MINIMUM_RELEASE_AGE=20160`; pnpm 11
+  reads `minimumReleaseAge: 20160` from `pnpm-workspace.yaml` (or
+  `PNPM_CONFIG_MINIMUM_RELEASE_AGE`), **not** the `NPM_CONFIG_*` name.
+  pnpm 11 ships this on by default at `1440` (1 day); override to `20160`.
 - **Catches:** the same surface as `before=`, but strictly stronger for pnpm.
   Survives clock skew, does not drift if the variable stops being refreshed, does not
   need recomputation at shell start.
-- **Bypass per package:** add to `minimumReleaseAgeExclude` in `.npmrc`. For example, to
-  exempt your own workspace packages: `minimum-release-age-exclude[]=@my-org/*`.
+- **Bypass per package:** add to `minimumReleaseAgeExclude` (in `pnpm-workspace.yaml`
+  for pnpm 11; in `.npmrc` as `minimum-release-age-exclude[]=@my-org/*` for pnpm 10.x),
+  and only with the documented exception process.
 - **npm support:** npm 11.10+ ships `min-release-age` (note: different name, units in
   **days** not minutes).
-  Env var: `NPM_CONFIG_MIN_RELEASE_AGE=7`. Earlier npm 11.x versions warn “Unknown env
+  Env var: `NPM_CONFIG_MIN_RELEASE_AGE=14`. Earlier npm 11.x versions warn “Unknown env
   config” but still function.
   Use `before=` for npm versions below 11.10.
 
@@ -288,11 +365,12 @@ days old. pnpm checks each candidate version individually.
 The names and units differ across tools and across versions.
 Pick the row for your tool and version, then set exactly one release-age control.
 
-| Tool | Env var | Unit | Available in |
+| Tool | Setting (env var, or YAML key for pnpm 11) | Unit | Available in |
 | --- | --- | --- | --- |
 | npm (any) | `NPM_CONFIG_BEFORE` | absolute ISO 8601 date | all current npm |
 | npm 11.10+ | `NPM_CONFIG_MIN_RELEASE_AGE` | days (integer) | npm 11.10+ |
-| pnpm 10.16.0+ | `NPM_CONFIG_MINIMUM_RELEASE_AGE` | minutes (integer) | pnpm 10.16.0+ |
+| pnpm 10.16-10.x | `NPM_CONFIG_MINIMUM_RELEASE_AGE` | minutes (integer) | pnpm 10.16-10.x |
+| pnpm 11+ | `minimumReleaseAge` in `pnpm-workspace.yaml` (env: `PNPM_CONFIG_MINIMUM_RELEASE_AGE`) | minutes (integer) | pnpm 11+ |
 
 Rules:
 
@@ -300,13 +378,18 @@ Rules:
   once. Pick one based on npm version.
   If both are present npm’s behavior depends on the version and may be silently
   inconsistent.
-- For pnpm, `NPM_CONFIG_MINIMUM_RELEASE_AGE` is the pnpm-native control; pnpm also
-  honors `NPM_CONFIG_BEFORE`. The hardening script in this repo sets `BEFORE` for
-  npm/pnpm compatibility plus `MINIMUM_RELEASE_AGE` for pnpm’s stronger semantics; pnpm
-  uses the stricter of the two when both are set.
-- npm warns “Unknown env config 'minimum-release-age'” because that is the pnpm
-  spelling; it continues to function.
-  Do not “fix” the warning by renaming the variable away from the pnpm canonical name.
+- For **pnpm 10.x**, `NPM_CONFIG_MINIMUM_RELEASE_AGE` is the native control; pnpm 10.x
+  also honors `NPM_CONFIG_BEFORE`. The `~/.npm-hardening.sh` script sets `BEFORE` for
+  npm/pnpm-10 compatibility plus `MINIMUM_RELEASE_AGE` for pnpm’s stronger semantics;
+  pnpm uses the stricter of the two when both are set.
+- For **pnpm 11**, the `NPM_CONFIG_*` names are not read at all.
+  Set `minimumReleaseAge` in `pnpm-workspace.yaml` (or
+  `PNPM_CONFIG_MINIMUM_RELEASE_AGE`). pnpm 11 does not read `NPM_CONFIG_BEFORE` either;
+  rely on `minimumReleaseAge` (it ships on by default at `1440` = 1 day, so override to
+  `20160`).
+- On npm, the warning “Unknown env config 'minimum-release-age'” is expected (that is
+  the pnpm 10.x spelling); npm still functions.
+  Do not “fix” it by renaming the variable.
 
 ### Control 3: `NPM_CONFIG_IGNORE_SCRIPTS` (No Install Hooks)
 
@@ -351,7 +434,8 @@ human action.
 **Strategic takeaway:**
 
 - **pnpm projects** get all four protections with security-by-default in v11
-  (`minimumReleaseAge` defaults to 1440 minutes); strongest posture.
+  (`minimumReleaseAge` defaults to 1440 minutes = 1 day; override to 20160 = 14 days per
+  this repo’s default policy); strongest posture.
 - **npm projects** get four controls as of 11.10 (`before`, `min-release-age`,
   `ignore-scripts`, `npm ci`), but no per-package script allowlist.
 - **yarn berry ≥4.10** gets rolling release-age (`npmMinimalAgeGate`), script blocking
@@ -374,15 +458,15 @@ The same file works on macOS, Linux, and WSL.
 ```sh
 # ~/.npm-hardening.sh — POSIX sh; works in bash, zsh, dash, sh
 
-# Rolling 7-day quarantine, recomputed at shell start.
+# Rolling 14-day quarantine, recomputed at shell start.
 # BSD date (macOS) primary; GNU date (Linux/WSL) fallback.
-NPM_HARDENING_BEFORE="$(date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
-  || date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
+NPM_HARDENING_BEFORE="$(date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+  || date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
 [ -n "$NPM_HARDENING_BEFORE" ] && export NPM_CONFIG_BEFORE="$NPM_HARDENING_BEFORE"
 unset NPM_HARDENING_BEFORE
 
-# pnpm-native rolling check; 10080 = 7 days in minutes. Requires pnpm >= 10.16.0.
-export NPM_CONFIG_MINIMUM_RELEASE_AGE=10080
+# pnpm-native rolling check; 20160 = 14 days in minutes. Requires pnpm >= 10.16.0.
+export NPM_CONFIG_MINIMUM_RELEASE_AGE=20160
 
 # Defeat install scripts. Primary exfil vector in worm-class attacks.
 export NPM_CONFIG_IGNORE_SCRIPTS=true
@@ -432,8 +516,8 @@ Cover both by adding the sourcer to both `~/.bash_profile` (or `~/.profile`) and
 ```fish
 # Append to ~/.config/fish/conf.d/npm-hardening.fish
 # BSD date (macOS) primary; GNU date (Linux) fallback.
-set -gx NPM_CONFIG_BEFORE (date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null; or date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)
-set -gx NPM_CONFIG_MINIMUM_RELEASE_AGE 10080
+set -gx NPM_CONFIG_BEFORE (date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null; or date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)
+set -gx NPM_CONFIG_MINIMUM_RELEASE_AGE 20160
 set -gx NPM_CONFIG_IGNORE_SCRIPTS true
 set -gx NPM_CONFIG_FROZEN_LOCKFILE true
 ```
@@ -445,11 +529,11 @@ Files under `~/.config/fish/conf.d/` are auto-sourced.
 ### Verification (Any Shell On macOS)
 
 ```sh
-pnpm config get before                # ISO date roughly 7 days ago
-pnpm config get minimum-release-age   # 10080
+pnpm config get before                # ISO date roughly 14 days ago
+pnpm config get minimum-release-age   # 20160
 pnpm config get ignore-scripts        # true
 pnpm config get frozen-lockfile       # true
-npm config get before                 # JS Date string roughly 7 days ago
+npm config get before                 # JS Date string roughly 14 days ago
 npm config get ignore-scripts         # true
 ```
 
@@ -495,7 +579,7 @@ units, is `environment.d`:
 
 ```ini
 # ~/.config/environment.d/npm-hardening.conf
-NPM_CONFIG_MINIMUM_RELEASE_AGE=10080
+NPM_CONFIG_MINIMUM_RELEASE_AGE=20160
 NPM_CONFIG_IGNORE_SCRIPTS=true
 NPM_CONFIG_FROZEN_LOCKFILE=true
 NPM_CONFIG_BEFORE=2026-05-05T00:00:00Z
@@ -511,7 +595,7 @@ A simple timer to refresh weekly:
 # ~/.config/systemd/user/npm-hardening-refresh.service
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'sed -i "s|^NPM_CONFIG_BEFORE=.*|NPM_CONFIG_BEFORE=$(date -u -d \"7 days ago\" \"+%%Y-%%m-%%dT%%H:%%M:%%SZ\")|" %h/.config/environment.d/npm-hardening.conf'
+ExecStart=/bin/sh -c 'sed -i "s|^NPM_CONFIG_BEFORE=.*|NPM_CONFIG_BEFORE=$(date -u -d \"14 days ago\" \"+%%Y-%%m-%%dT%%H:%%M:%%SZ\")|" %h/.config/environment.d/npm-hardening.conf'
 ```
 
 ```ini
@@ -535,8 +619,8 @@ Create the file if it does not exist.
 
 ```powershell
 # Append to $PROFILE
-$env:NPM_CONFIG_BEFORE = (Get-Date).ToUniversalTime().AddDays(-7).ToString("yyyy-MM-ddTHH:mm:ssZ")
-$env:NPM_CONFIG_MINIMUM_RELEASE_AGE = "10080"
+$env:NPM_CONFIG_BEFORE = (Get-Date).ToUniversalTime().AddDays(-14).ToString("yyyy-MM-ddTHH:mm:ssZ")
+$env:NPM_CONFIG_MINIMUM_RELEASE_AGE = "20160"
 $env:NPM_CONFIG_IGNORE_SCRIPTS = "true"
 $env:NPM_CONFIG_FROZEN_LOCKFILE = "true"
 ```
@@ -554,10 +638,10 @@ and any GUI-launched process the user starts:
 
 ```powershell
 [Environment]::SetEnvironmentVariable("NPM_CONFIG_IGNORE_SCRIPTS", "true", "User")
-[Environment]::SetEnvironmentVariable("NPM_CONFIG_MINIMUM_RELEASE_AGE", "10080", "User")
+[Environment]::SetEnvironmentVariable("NPM_CONFIG_MINIMUM_RELEASE_AGE", "20160", "User")
 [Environment]::SetEnvironmentVariable("NPM_CONFIG_FROZEN_LOCKFILE", "true", "User")
 [Environment]::SetEnvironmentVariable("NPM_CONFIG_BEFORE",
-  (Get-Date).ToUniversalTime().AddDays(-7).ToString("yyyy-MM-ddTHH:mm:ssZ"), "User")
+  (Get-Date).ToUniversalTime().AddDays(-14).ToString("yyyy-MM-ddTHH:mm:ssZ"), "User")
 ```
 
 To refresh `BEFORE=` daily, schedule a task: **Task Scheduler → Create Basic Task →
@@ -573,7 +657,7 @@ entries:
 
 ```cmd
 setx NPM_CONFIG_IGNORE_SCRIPTS true
-setx NPM_CONFIG_MINIMUM_RELEASE_AGE 10080
+setx NPM_CONFIG_MINIMUM_RELEASE_AGE 20160
 setx NPM_CONFIG_FROZEN_LOCKFILE true
 ```
 
@@ -608,14 +692,14 @@ Inject the variables into the runner’s environment explicitly.
 env:
   NPM_CONFIG_IGNORE_SCRIPTS: "true"
   NPM_CONFIG_FROZEN_LOCKFILE: "true"
-  NPM_CONFIG_MINIMUM_RELEASE_AGE: "10080"
+  NPM_CONFIG_MINIMUM_RELEASE_AGE: "20160"
 
 jobs:
   install:
     runs-on: ubuntu-latest
     steps:
       - name: Compute rolling quarantine
-        run: echo "NPM_CONFIG_BEFORE=$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+        run: echo "NPM_CONFIG_BEFORE=$(date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - run: pnpm install
 ```
@@ -626,9 +710,9 @@ jobs:
 variables:
   NPM_CONFIG_IGNORE_SCRIPTS: "true"
   NPM_CONFIG_FROZEN_LOCKFILE: "true"
-  NPM_CONFIG_MINIMUM_RELEASE_AGE: "10080"
+  NPM_CONFIG_MINIMUM_RELEASE_AGE: "20160"
 before_script:
-  - export NPM_CONFIG_BEFORE=$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')
+  - export NPM_CONFIG_BEFORE=$(date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ')
 ```
 
 ### CircleCI, Buildkite, Jenkins
@@ -875,14 +959,21 @@ done
 
 ## Common Questions
 
-**Does `before=` block legitimate security patches that landed in the last 7 days?**
-Yes, by design. The trade-off: 7 days of delayed security patches versus zero days of
-supply-chain malware exposure.
-Historically the latter has been the bigger source of incidents for typical projects.
-For genuinely urgent CVEs (a 0-day RCE), opt out per command.
+**Why 14 days, and does it block legitimate security patches that landed in that
+window?** Yes, by design.
+14 days is the repo-wide default (see
+[README, The Default Policy](../README.md#the-default-policy-a-14-day-cool-off)): most
+malicious publishes are detected within 3-7 days, but the slowest-detected ones run
+longer (the `ctx` PyPI takeover was live ~10 days), so 14 days covers the realistic tail
+at near-zero cost on routine upgrades.
+The trade-off is 14 days of delayed security patches versus the supply-chain-malware
+exposure window. For a genuinely urgent CVE, take the documented
+[exception](../README.md#the-exception-process): opt out per command, pin the exact
+version, and log it.
+`npm-check-updates --cooldown 14` enforces the same window at upgrade-decision time.
 
 **How does this interact with Renovate or Dependabot?** Both have native equivalents.
-Renovate supports `minimumReleaseAge: "7 days"` in `renovate.json`. Dependabot does not
+Renovate supports `minimumReleaseAge: "14 days"` in `renovate.json`. Dependabot does not
 yet (as of 2026-05); track this.
 Renovate’s filter is independent of pnpm’s; both should be on.
 
@@ -945,6 +1036,14 @@ Docs”.
 - [The Hacker News: Mini Shai-Hulud Worm Compromises TanStack, Mistral AI, Guardrails AI](https://thehackernews.com/2026/05/mini-shai-hulud-worm-compromises.html)
 - [Socket: TanStack npm Packages Compromised in Mini Shai-Hulud](https://socket.dev/blog/tanstack-npm-packages-compromised-mini-shai-hulud-supply-chain-attack)
 - [SafeDep: Mass Supply Chain Attack Hits TanStack, Mistral AI npm and PyPI Packages](https://safedep.io/mass-npm-supply-chain-attack-tanstack-mistral/)
+- [Socket: node-ipc npm Package Infected with Credential Stealer (May 14 2026)](https://socket.dev/blog/node-ipc-package-compromised)
+- [Datadog Security Labs: node-ipc DNS-exfiltration credential stealer](https://securitylabs.datadoghq.com/articles/node-ipc-npm-malware-analysis/)
+- [SafeDep: Megalodon mass GitHub repo backdooring (Tiledesk, May 18 2026)](https://safedep.io/megalodon-mass-github-repo-backdooring-ci-workflows/)
+- [Microsoft Security: Mini Shai-Hulud compromised @antv npm packages (May 20 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/20/mini-shai-hulud-compromised-antv-npm-packages-enable-ci-cd-credential-theft/)
+- [Socket: @antv packages compromised; npm invalidates 61,274 tokens](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud)
+- [Endor Labs: Mini Shai-Hulud returns with fake Sigstore badges in the @antv attack](https://www.endorlabs.com/learn/mini-shai-hulud-returns-42-malicious-npm-packages-fake-sigstore-badges-in-antv-ecosystem-attack)
+- [Bitwarden: Statement on the Checkmarx supply-chain incident (@bitwarden/cli, Apr 22 2026)](https://community.bitwarden.com/t/bitwarden-statement-on-checkmarx-supply-chain-incident/96127)
+- [The Hacker News: Trivy compromise triggers self-spreading CanisterWorm across npm](https://thehackernews.com/2026/03/trivy-supply-chain-attack-triggers-self.html)
 
 ### Tools And Feeds
 
@@ -964,6 +1063,10 @@ Docs”.
 - [npm CLI 11.10 min-release-age (Socket)](https://socket.dev/blog/npm-introduces-minimumreleaseage-and-bulk-oidc-configuration)
 - [npm min-release-age config docs](https://docs.npmjs.com/cli/v11/using-npm/config#min-release-age)
 - [Bun trusted dependencies guide](https://bun.com/docs/guides/install/trusted)
+- [npm Trusted Publishing (OIDC) docs](https://docs.npmjs.com/trusted-publishers/)
+- [npm Staged Publishing docs (GA 2026-05-20, CLI 11.15+)](https://docs.npmjs.com/staged-publishing/)
+- [GitHub changelog: staged publishing and new install-time controls for npm](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/)
+- [npm: verifying registry signatures / `npm audit signatures`](https://docs.npmjs.com/verifying-registry-signatures/)
 - [Mondoo: npm Supply Chain Security in 2026 (per-manager comparison)](https://mondoo.com/blog/npm-supply-chain-security-package-manager-defenses-2026)
 - [Aikido Endpoint launch (Apr 2026)](https://www.aikido.dev/blog/top-software-supply-chain-security-tools)
 

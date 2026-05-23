@@ -10,19 +10,22 @@
 # maintenance checklist can re-verify on major bumps.
 
 # --- npm / pnpm ---
-NPM_CONFIG_BEFORE                      # npm + pnpm; absolute ISO 8601 date
+NPM_CONFIG_BEFORE                      # npm + pnpm 10.x; absolute ISO 8601 date
 NPM_CONFIG_MIN_RELEASE_AGE             # npm 11.10+; days (integer)
-NPM_CONFIG_MINIMUM_RELEASE_AGE         # pnpm 10.16.0+; minutes (integer)
-NPM_CONFIG_IGNORE_SCRIPTS              # npm + pnpm; disables lifecycle scripts
-NPM_CONFIG_FROZEN_LOCKFILE             # pnpm; refuse mutating installs
-NPM_CONFIG_STRICT_DEP_BUILDS           # pnpm 10.16+; fail on unreviewed build scripts
+NPM_CONFIG_MINIMUM_RELEASE_AGE         # pnpm 10.16-10.x; minutes (integer)
+NPM_CONFIG_IGNORE_SCRIPTS              # npm + pnpm 10.x; disables lifecycle scripts
+NPM_CONFIG_FROZEN_LOCKFILE             # pnpm 10.x; refuse mutating installs
+NPM_CONFIG_STRICT_DEP_BUILDS           # pnpm 10.16-10.x; fail on unreviewed build scripts
+# pnpm 11 (2026-04-28) no longer reads npm_config_*; the env prefix is PNPM_CONFIG_*,
+# and the durable config lives in pnpm-workspace.yaml. See https://pnpm.io/blog/releases/11.0
+PNPM_CONFIG_MINIMUM_RELEASE_AGE        # pnpm 11+; minutes (integer); YAML key minimumReleaseAge
 
 # --- PyPI / pip / uv ---
 PIP_ONLY_BINARY                        # pip; --only-binary equivalent
 PIP_UPLOADED_PRIOR_TO                  # pip 26.1+; ISO 8601 duration or absolute timestamp
 PIP_CONFIG_FILE                        # pip; overrides config-file lookup
 PIP_EXTRA_INDEX_URL                    # pip; DANGEROUS for private packages (dep confusion)
-UV_EXCLUDE_NEWER                       # uv; accepts friendly durations like "7 days"
+UV_EXCLUDE_NEWER                       # uv; accepts friendly durations like "14 days"
 UV_NO_BUILD                            # uv; equivalent of --no-build (refuses sdists)
 UV_NO_BINARY                           # uv; equivalent of --no-binary (forces source builds)
 

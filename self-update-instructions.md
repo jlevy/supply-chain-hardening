@@ -1,6 +1,6 @@
 # Self-Update Instructions
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -10,9 +10,12 @@ Three doc categories require updates on different cadences:
 - **Compromised-packages table** (`compromised-packages.md`): canonical cross-ecosystem
   record of named supply-chain incidents.
   Updated whenever a new incident is multi-source verified.
-- **Hardening guidelines** (`hardening-<ecosystem>.md`): brief operational action lists.
+- **Hardening guidelines** (`hardening-<ecosystem>.md`, plus the cross-ecosystem
+  `hardening-ci-cd.md`): brief operational action lists.
   Update when configuration recipes change (new env var, new flag, new tool replacing an
-  old one).
+  old one). `hardening-ci-cd.md` covers publish-side and GitHub Actions controls that are
+  not specific to one registry; update it when a CI/CD control changes (new GitHub
+  Actions setting, new trusted/staged-publishing flow, new runner-hardening option).
 - **Research docs** (`research-<ecosystem>-supply-chain-hardening.md`): full
   threat-model and per-ecosystem-implementation references.
   Update when an ecosystem-specific control set or mechanism changes, or when there is
@@ -96,6 +99,22 @@ Do not add detail that belongs in the research doc.
 The hardening doc is intentionally brief; new background or threat-context goes into the
 research doc.
 
+**Keep the cool-off default consistent.** The repo-wide default is **14 days**
+(`README.md` → “The Default Policy: A 14-Day Cool-Off”). If that number ever changes,
+update it everywhere in lockstep, minding that the control and unit differ by tool:
+
+- npm 11.10+: `NPM_CONFIG_MIN_RELEASE_AGE=14` (days).
+- pnpm 10.x: `NPM_CONFIG_MINIMUM_RELEASE_AGE=20160` (minutes).
+- pnpm 11+: `minimumReleaseAge: 20160` in `pnpm-workspace.yaml` (minutes); pnpm 11 does
+  not read `NPM_CONFIG_*` env vars, only `PNPM_CONFIG_*`.
+- uv: `UV_EXCLUDE_NEWER=”14 days”`; pip 26.1+: `PIP_UPLOADED_PRIOR_TO=”P14D”`; poetry:
+  `solver.min-release-age 14` (days).
+- The `date -v-14d` / `-d '14 days ago'` shell snippets and
+  `npm-check-updates --cooldown 14` examples, plus `SUPPLY-CHAIN-SECURITY.md`,
+  `guidelines/strict-mode.md`, and the per-ecosystem playbooks.
+
+Grep for `14`, `20160`, and `P14D` before claiming the change is complete.
+
 ## Updating Research Docs (`research-*-supply-chain-hardening.md`)
 
 Update when:
@@ -157,8 +176,8 @@ before bumping the Last Verified Against table.
 
 | Tool | Version | Verified date | Validator | Notes |
 | --- | --- | --- | --- | --- |
-| npm | 11.x | 2026-05-12 | initial author | `NPM_CONFIG_MIN_RELEASE_AGE` requires 11.10+ |
-| pnpm | 10.x | 2026-05-12 | initial author | `MINIMUM_RELEASE_AGE` requires 10.16.0+; `strictDepBuilds` / `allowBuilds` per 10.26+ |
+| npm | 11.x | 2026-05-23 | agent-assisted refresh | `NPM_CONFIG_MIN_RELEASE_AGE` requires 11.10+; staged publishing (`npm stage publish` / `npm stage approve`) GA 2026-05-20 requires 11.15+; OIDC trusted publishing requires 11.5.1+ |
+| pnpm | 10.x and 11.x | 2026-05-23 | agent-assisted refresh | 10.x reads `NPM_CONFIG_MINIMUM_RELEASE_AGE` (minutes); **pnpm 11 (2026-04-28) no longer reads `npm_config_*` — env prefix is `PNPM_CONFIG_*`, settings live in `pnpm-workspace.yaml` / `~/.config/pnpm/config.yaml`** ([release notes](https://pnpm.io/blog/releases/11.0)); v11 defaults `minimumReleaseAge: 1440` and `strictDepBuilds: true`; `allowBuilds` map replaced `onlyBuiltDependencies`/`neverBuiltDependencies` |
 | pip | 26.1 | 2026-05-12 | initial author | `PIP_UPLOADED_PRIOR_TO` accepts ISO 8601 duration in 26.1+ |
 | uv | latest | 2026-05-12 | initial author | `UV_NO_BUILD` documented; `UV_ONLY_BINARY` confirmed not a real env var |
 | cargo | 1.83+ | 2026-05-12 | initial author | `cargo-vet`, `cargo-deny`, `cargo-audit` versions pinned in CI examples |

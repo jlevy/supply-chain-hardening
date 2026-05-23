@@ -1,6 +1,6 @@
 # Go Modules Operational Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -162,12 +162,13 @@ osv-scanner scan source --lockfile=go.mod
 
 ### Step 3: Grep For Known IOCs From Recent Named Attacks
 
-The most relevant Go module attacks as of 2026-05-12. The cross-ecosystem table is in
+The most relevant Go module attacks as of 2026-05-23. The cross-ecosystem table is in
 [`compromised-packages.md`](../compromised-packages.md); this is the Go quick-grep
 extract:
 
 | Date | Name | Quick IOC Pattern |
 | --- | --- | --- |
+| 2026-05 (reported) | `shopsprint/decimal` typosquat | `github.com/shopsprint/decimal` (typosquat of `shopspring/decimal`); `v1.3.3` backdoored, still served by `proxy.golang.org` |
 | 2026-02 | Fake `x/crypto` (Rekoobe) | `github.com/xinfeisoft/crypto` in any `go.mod` or import |
 | 2025-05 | Disk-wiper modules | `github.com/truthfulpharm/prototransform`, `github.com/blankloggia/go-mcp`, `github.com/steelpoor/tlsproxy` |
 | 2025-06 | MongoDB qmgo typosquat | `github.com/qiniiu/qmgo` or `github.com/qiiniu/qmgo` |

@@ -1,6 +1,6 @@
 # NPM Operational Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -9,38 +9,70 @@ supply-chain attack wave, and to check whether you have already been compromised
 Full threat model, per-platform setup, IOC feeds, and scanning tools in
 [research-npm-supply-chain-hardening.md](../research/research-npm-supply-chain-hardening.md).
 
+This guide is install-side (protecting you as a *consumer*). If you also *publish* npm
+packages, harden the release pipeline too: use OIDC trusted publishing instead of
+long-lived tokens, enable staged publishing (`npm stage publish` / `npm stage approve`,
+npm 11.15+), and follow [`hardening-ci-cd.md`](hardening-ci-cd.md).
+The May 2026 @antv worm forged a valid “verified” provenance badge, so do not treat
+provenance as proof.
+
 ## Hardening (Ten-Minute Setup)
 
 ### Step 1: Create The Hardening Script
 
+The `~/.npm-hardening.sh` env-var recipe below applies to **npm (all versions) and pnpm
+10.x**. **pnpm 11 changed how it reads config** (see the pnpm 11 box after the script);
+if you are on pnpm 11, use the YAML recipe instead, or it will silently ignore these
+`NPM_CONFIG_*` variables.
+
 Create `~/.npm-hardening.sh` with the four protection env vars:
 
 ```sh
-# Rolling 7-day install quarantine, recomputed at shell start.
+# Rolling 14-day install quarantine, recomputed at shell start.
 # BSD date (macOS) primary; GNU date (Linux/WSL) fallback.
-NPM_HARDENING_BEFORE="$(date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
-  || date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
+NPM_HARDENING_BEFORE="$(date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+  || date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
 [ -n "$NPM_HARDENING_BEFORE" ] && export NPM_CONFIG_BEFORE="$NPM_HARDENING_BEFORE"
 unset NPM_HARDENING_BEFORE
 
-# pnpm-native rolling check; 10080 = 7 days in minutes. Requires pnpm >= 10.16.0.
-export NPM_CONFIG_MINIMUM_RELEASE_AGE=10080
+# pnpm 10.x native rolling check; 20160 = 14 days in minutes. Requires pnpm 10.16-10.x.
+# (pnpm 11 ignores this name; see the pnpm 11 box below.)
+export NPM_CONFIG_MINIMUM_RELEASE_AGE=20160
 
 # Defeat install scripts. Primary exfil vector in worm-class attacks.
 export NPM_CONFIG_IGNORE_SCRIPTS=true
 
-# pnpm only: refuse mutating installs. npm warns and ignores; harmless.
+# pnpm 10.x only: refuse mutating installs. npm warns and ignores; harmless.
 # npm users: use `npm ci` (clean install) in CI and after lockfile changes; it is
 # the non-mutating install mode for npm and is the equivalent of pnpm's frozen-lockfile.
 export NPM_CONFIG_FROZEN_LOCKFILE=true
 
-# pnpm only: fail when a dependency wants to run a build script that has not been
-# reviewed. Pair with `allowBuilds` in pnpm-workspace.yaml to allowlist trusted
-# build scripts. (pnpm 10.16+ exposes `strictDepBuilds`; `allowBuilds` is the
-# canonical name in v10.26+ for the build-script allowlist that replaced the
-# legacy `onlyBuiltDependencies` / `neverBuiltDependencies`.)
+# pnpm 10.x only: fail when a dependency wants to run an unreviewed build script.
+# Pair with `allowBuilds` in pnpm-workspace.yaml to allowlist trusted build scripts.
 export NPM_CONFIG_STRICT_DEP_BUILDS=true
 ```
+
+> **pnpm 11 (released 2026-04-28) reads config differently.** Per the
+> [pnpm 11 release notes](https://pnpm.io/blog/releases/11.0), pnpm **no longer reads
+> `npm_config_*` / `NPM_CONFIG_*` environment variables**; the env prefix is now
+> `pnpm_config_*` / `PNPM_CONFIG_*` (e.g. `PNPM_CONFIG_MINIMUM_RELEASE_AGE`), and
+> `.npmrc` is auth/registry only.
+> Put the policy in `pnpm-workspace.yaml` (project) or `~/.config/pnpm/config.yaml`
+> (global) so it cannot be silently dropped:
+> 
+> ```yaml
+> # pnpm-workspace.yaml (or ~/.config/pnpm/config.yaml)
+> minimumReleaseAge: 20160        # 14 days in minutes (default in v11 is 1440 = 1 day)
+> minimumReleaseAgeExclude: []    # add per-package exceptions here (documented only)
+> ignoreScripts: true             # block lifecycle scripts by default
+> strictDepBuilds: true           # default true in v11; fail on unreviewed build scripts
+> allowBuilds:                    # map: only these packages may run build scripts
+>   esbuild: true
+> ```
+> 
+> Run `pnpm install --frozen-lockfile` in CI for the lockfile guarantee.
+> The `PNPM_CONFIG_*` env prefix works for processes that do not read the YAML, but the
+> YAML is the durable, reviewable source of truth.
 
 ### Step 2: Source From Shell Init
 
@@ -55,10 +87,12 @@ Detail on each in
   `~/.bash_profile` or `~/.profile`.
 - **fish**: add to `~/.config/fish/conf.d/npm-hardening.fish`:
   ```fish
-  set -gx NPM_CONFIG_BEFORE (date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null; or date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)
-  set -gx NPM_CONFIG_MINIMUM_RELEASE_AGE 10080
+  # npm / pnpm 10.x; pnpm 11 users: use the YAML recipe in Step 1 instead.
+  set -gx NPM_CONFIG_BEFORE (date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null; or date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)
+  set -gx NPM_CONFIG_MINIMUM_RELEASE_AGE 20160
   set -gx NPM_CONFIG_IGNORE_SCRIPTS true
   set -gx NPM_CONFIG_FROZEN_LOCKFILE true
+  set -gx NPM_CONFIG_STRICT_DEP_BUILDS true
   ```
 - **Windows PowerShell**: add to `$PROFILE` (see
   [research-npm-supply-chain-hardening.md](../research/research-npm-supply-chain-hardening.md#powershell-7-pwsh)).
@@ -72,17 +106,29 @@ Detail on each in
 # Shell-state check: every variable is set in the current shell.
 env | grep -E '^NPM_CONFIG_(BEFORE|MIN_RELEASE_AGE|MINIMUM_RELEASE_AGE|IGNORE_SCRIPTS|FROZEN_LOCKFILE|STRICT_DEP_BUILDS)='
 
-# Tool view: npm and pnpm report what they actually honor (cross-check with shell).
-pnpm config get before                # ISO date ~7 days ago
-pnpm config get minimum-release-age   # 10080
+# Tool view: npm and pnpm 10.x report what they actually honor (cross-check with shell).
+pnpm config get before                # ISO date ~14 days ago
+pnpm config get minimum-release-age   # 20160
 pnpm config get ignore-scripts        # true
 pnpm config get frozen-lockfile       # true
-npm config get before                 # date ~7 days ago
+npm config get before                 # date ~14 days ago
 npm config get ignore-scripts         # true
 ```
 
-`npm` warns “Unknown env config 'frozen-lockfile' / 'minimum-release-age'”. Those are
+`npm` warns “Unknown env config ‘frozen-lockfile’ / 'minimum-release-age'”. Those are
 pnpm-only features; npm still functions correctly.
+
+**pnpm 11 verification** (the `NPM_CONFIG_*` view above does not apply; confirm the YAML
+is actually honored):
+
+```sh
+pnpm --version                     # 11.x
+pnpm config get minimumReleaseAge  # 20160 (not 1440)
+pnpm config get strictDepBuilds    # true
+pnpm config get ignoreScripts      # true
+# Smoke test: a just-published version must be refused by the 14-day gate.
+pnpm add --dry-run <some-package-published-in-the-last-day> 2>&1 | head
+```
 
 Env-var-only setups are not visible to GUI-launched agents or non-interactive
 subprocesses that do not inherit your shell environment.
@@ -94,16 +140,19 @@ processes (see the research doc).
 
 #### Names And Units Differ Between npm And pnpm
 
-| Tool | Env var | Unit |
+| Tool | Setting | Unit |
 | --- | --- | --- |
 | npm (any) | `NPM_CONFIG_BEFORE` | absolute ISO 8601 date |
 | npm 11.10+ | `NPM_CONFIG_MIN_RELEASE_AGE` | days (integer) |
-| pnpm 10.16.0+ | `NPM_CONFIG_MINIMUM_RELEASE_AGE` | minutes (integer) |
+| pnpm 10.16-10.x | `NPM_CONFIG_MINIMUM_RELEASE_AGE` | minutes (integer) |
+| pnpm 11+ | `minimumReleaseAge` in `pnpm-workspace.yaml` (env: `PNPM_CONFIG_MINIMUM_RELEASE_AGE`) | minutes (integer) |
 
 Do not set both `NPM_CONFIG_BEFORE` and `NPM_CONFIG_MIN_RELEASE_AGE` for npm; pick one
 based on your npm version.
-pnpm’s `NPM_CONFIG_MINIMUM_RELEASE_AGE` (note the spelling: `MINIMUM`, not `MIN`) is
-safe to set alongside `BEFORE`; pnpm enforces the stricter of the two.
+For **pnpm 10.x**, `NPM_CONFIG_MINIMUM_RELEASE_AGE` (note the spelling: `MINIMUM`, not
+`MIN`) is safe to set alongside `BEFORE`; pnpm enforces the stricter of the two.
+For **pnpm 11**, none of the `NPM_CONFIG_*` names are read at all; use the YAML config
+(or the `PNPM_CONFIG_*` env prefix) from the Step 1 pnpm 11 box.
 
 ### Agent Ban List
 
@@ -126,6 +175,50 @@ version:
 ```sh
 NPM_CONFIG_BEFORE= NPM_CONFIG_MIN_RELEASE_AGE=0 NPM_CONFIG_MINIMUM_RELEASE_AGE=0 \
   NPM_CONFIG_FROZEN_LOCKFILE=false pnpm add some-pkg
+```
+
+This is the documented [exception process](../README.md#the-exception-process): take it
+only with a stated reason (a CVE ID for security patches), pin the exact version, and
+log it. The env vars above enforce the 14-day default; everything below helps you hold
+the line at upgrade time.
+
+### Step 5: Enforce The 14-Day Cool-Off At Upgrade Time
+
+`NPM_CONFIG_MINIMUM_RELEASE_AGE` gates resolution; `npm-check-updates --cooldown` gates
+the upgrade decision itself.
+Use it (works on npm/pnpm/yarn projects):
+
+```sh
+# Refuse any candidate version younger than 14 days
+pnpm dlx npm-check-updates@<pinned-version> --cooldown 14
+
+# CI-style: exit non-zero if any fresh-enough upgrade is available
+pnpm dlx npm-check-updates@<pinned-version> --cooldown 14 --errorLevel 2
+```
+
+For a specific version, query the publish time directly and wait if it is too new:
+
+```sh
+npm view <pkg> time            # all publish times
+npm view <pkg> time.<version>  # one version; if < 14 days ago, wait
+```
+
+Optional pre-push guard that fails if any direct dependency is younger than 14 days:
+
+```sh
+#!/usr/bin/env bash
+# scripts/check-package-age.sh — wire into a pre-push hook (lefthook/husky).
+COOLDOWN_DAYS=14
+now=$(date -u +%s)
+fail=0
+node -e 'const p=require("./package.json");for(const[n,v]of Object.entries({...p.dependencies,...p.devDependencies}))console.log(n,String(v).replace(/^[^0-9]*/,""))' \
+| while read -r name version; do
+    published=$(npm view "$name@$version" time."$version" 2>/dev/null) || continue
+    [ -z "$published" ] && continue
+    age=$(( (now - $(date -u -d "$published" +%s 2>/dev/null || date -u -jf '%Y-%m-%dT%H:%M:%S' "${published%.*}" +%s)) / 86400 ))
+    if [ "$age" -lt "$COOLDOWN_DAYS" ]; then echo "✗ $name@$version is only ${age}d old (< $COOLDOWN_DAYS)"; fail=1; fi
+  done
+exit $fail
 ```
 
 ## Compromise Assessment
@@ -162,12 +255,15 @@ rationale for using a Python-stdlib script rather than a Node-based one.
 
 ### Step 2: Grep For Known IOCs From The Most Recent Named Attacks
 
-The most relevant attacks as of 2026-05-12. Canonical full list (cross-ecosystem) is in
+The most relevant attacks as of 2026-05-23. Canonical full list (cross-ecosystem) is in
 [`compromised-packages.md`](../compromised-packages.md); this is the npm quick-grep
 extract:
 
 | Date | Name | Quick IOC Pattern |
 | --- | --- | --- |
+| 2026-05-19 | @antv (Mini Shai-Hulud) | `@antv/g@6.4.1`, `@antv/g@6.5.1`, `echarts-for-react@3.1.7`, `size-sensor@1.0.4`; full list via GitHub Advisory DB `type:malware` for the `atool` scope (e.g. `GHSA-6fr3-r6r6-h4h9`). Note: forged “verified” provenance, badge is not proof |
+| 2026-05-18 | Megalodon / Tiledesk | `@tiledesk/tiledesk-server@2.18.6`, `2.18.7`, `2.18.9`, `2.18.10`, `2.18.11`, `2.18.12` (clean `2.18.5`); see [GHSA-5vfv-hpg7-77hj](https://github.com/advisories/GHSA-5vfv-hpg7-77hj) |
+| 2026-05-14 | node-ipc | `node-ipc@9.1.6`, `node-ipc@9.2.3`, `node-ipc@12.0.1`. Fires at `require()`, not via install script, so `ignore-scripts` does not block it |
 | 2026-05-11 | TanStack | `@tanstack/*` packages published 19:20-19:26 UTC; canonical list at [TanStack postmortem](https://tanstack.com/blog/npm-supply-chain-compromise-postmortem) |
 | 2026-04-30 | Intercom and lightning | `intercom-client@7.0.4`, `intercom-client@7.0.5`, `lightning@2.6.2`, `lightning@2.6.3` |
 | 2026-04-29 | SAP / `@cap-js/*` | `mbt@1.2.48`, `@cap-js/db-service@2.10.1`, `@cap-js/postgres@2.2.2`, `@cap-js/sqlite@2.2.2` |
@@ -324,20 +420,26 @@ Inject the variables explicitly.
 
 ### GitHub Actions
 
+The `NPM_CONFIG_*` env block below targets **npm and pnpm 10.x**. For **pnpm 11**,
+commit the policy in `pnpm-workspace.yaml` (Step 1 box) and pass `--frozen-lockfile`;
+pnpm 11 ignores `NPM_CONFIG_*`, so set `PNPM_CONFIG_*` names instead if you must use env
+vars in CI.
+
 ```yaml
 env:
   NPM_CONFIG_IGNORE_SCRIPTS: "true"
   NPM_CONFIG_FROZEN_LOCKFILE: "true"
-  NPM_CONFIG_MINIMUM_RELEASE_AGE: "10080"
+  NPM_CONFIG_MINIMUM_RELEASE_AGE: "20160"   # pnpm 10.x; pnpm 11 uses pnpm-workspace.yaml
+  NPM_CONFIG_STRICT_DEP_BUILDS: "true"      # pnpm 10.x; pnpm 11 reads it from YAML
   OSV_SCANNER_VERSION: "v2.0.2"
 jobs:
   install:
     runs-on: ubuntu-latest
     steps:
       - name: Compute rolling quarantine
-        run: echo "NPM_CONFIG_BEFORE=$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+        run: echo "NPM_CONFIG_BEFORE=$(date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
-      - run: pnpm install   # honors frozen-lockfile via env var; npm equivalent: `npm ci`
+      - run: pnpm install --frozen-lockfile   # npm equivalent: `npm ci`
       - name: Install pinned osv-scanner
         run: |
           curl -fsSL -o /tmp/osv-scanner \

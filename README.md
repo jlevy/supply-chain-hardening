@@ -4,12 +4,30 @@
 curated watch list of recent compromises across npm, PyPI, crates.io, and Go modules.
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance\
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 ## Quick Start
 
 Read the [Safety Note](#safety-note) before applying anything, and validate every recipe
 against the [Authoritative Sources](#authoritative-sources).
+
+### Which Path Do I Follow?
+
+- **Consumer-only repo** (you install dependencies, you do not publish packages): apply
+  the ecosystem [playbook](#harden-a-single-ecosystem), commit lockfiles, and add a CI
+  scanner gate.
+- **Repo that publishes packages or releases via GitHub Actions:** apply
+  [`guidelines/hardening-ci-cd.md`](guidelines/hardening-ci-cd.md) first, then the
+  ecosystem playbook. The minimum GitHub Actions defaults: top-level
+  `permissions: contents: read`; no `pull_request_target` workflow that checks out PR
+  head code; restore-only cache on PRs (and avoid implicit cache saves from setup
+  actions); SHA-pin actions; OIDC trusted publishing plus npm staged publishing; publish
+  job behind a GitHub Environment with required reviewers.
+- **Agent working in an untrusted repo:** follow
+  [`guidelines/untrusted-repo-first-run.md`](guidelines/untrusted-repo-first-run.md)
+  before any install / build / test / run command.
+- **Machine with publish tokens or production access:** enter Strict mode
+  ([`guidelines/strict-mode.md`](guidelines/strict-mode.md)).
 
 ### Harden A Single Ecosystem
 
@@ -22,6 +40,13 @@ Each is a copy-pasteable Ten-Minute Setup.
 | **PyPI / Python** | [guidelines/hardening-pypi.md](guidelines/hardening-pypi.md) |
 | **crates.io / Rust** | [guidelines/hardening-crates.md](guidelines/hardening-crates.md) |
 | **Go modules** | [guidelines/hardening-go.md](guidelines/hardening-go.md) |
+| **CI/CD and publish pipeline** (cross-ecosystem) | [guidelines/hardening-ci-cd.md](guidelines/hardening-ci-cd.md) |
+
+The four per-ecosystem playbooks harden the **install** side.
+If you publish packages, or your repo releases via GitHub Actions, also apply the
+cross-ecosystem [CI/CD playbook](guidelines/hardening-ci-cd.md): most 2026 incidents
+(TanStack, @antv, Megalodon, `durabletask`) compromised the publish pipeline, not a
+consumer.
 
 ### Harden All Ecosystems
 
@@ -54,7 +79,7 @@ timeline, per-shell setup detail, and severity assessment per ecosystem.
 ### Drop A Reminder Into Your Own Codebase
 
 [`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md) is a self-contained, portable
-version of the install rules (no newer than 7 days, no unthinking installs, audit after
+version of the install rules (no newer than 14 days, no unthinking installs, audit after
 every install, link back here for detail).
 Copy it to your own project root and reference it from your project’s `AGENTS.md` so any
 AI agent working in your codebase sees the rules before installing anything.
@@ -69,6 +94,7 @@ When the user asks you to harden, audit, or assess a package-manager supply chai
 | “Harden my PyPI setup” | Apply [guidelines/hardening-pypi.md](guidelines/hardening-pypi.md). Verify, log. |
 | “Harden my Rust setup” | Apply [guidelines/hardening-crates.md](guidelines/hardening-crates.md). Verify, log. |
 | “Harden my Go setup” | Apply [guidelines/hardening-go.md](guidelines/hardening-go.md). Verify, log. |
+| “Harden my CI / release pipeline” or “We publish packages” | Apply [guidelines/hardening-ci-cd.md](guidelines/hardening-ci-cd.md): read-only PR caches, SHA-pinned actions, runner egress block, OIDC/staged publishing, provenance monitoring. |
 | “Harden everything on this machine” | Walk [Harden All Ecosystems](#harden-all-ecosystems) end to end. One audit-log entry per ecosystem. |
 | “I just installed X. Am I compromised?” | Start at [compromised-packages.md](compromised-packages.md). For npm, run `uv run scripts/audit_npm.py --packages <pkg@ver>`. For other ecosystems, `osv-scanner` per the playbook. Log findings. |
 | “Add a new ecosystem (RubyGems, NuGet, …)” | Follow [self-update-instructions.md](self-update-instructions.md) → “Adding A New Ecosystem”. Cite multiple [authoritative sources](#authoritative-sources). |
@@ -91,7 +117,9 @@ IDEs and agents that auto-load that filename.
 
 - Per-ecosystem **hardening guides** (the four
   [playbooks above](#harden-a-single-ecosystem)) with copy-pasteable shell and CI
-  configuration.
+  configuration, plus a cross-ecosystem
+  [CI/CD and publish-pipeline guide](guidelines/hardening-ci-cd.md) for the GitHub
+  Actions and release-token vectors behind the 2026 worm campaigns.
 - Per-ecosystem **research docs** in [`research/`](research/) explaining the threat
   model, attack mechanisms, and defensive trade-offs.
 - A **strict-mode reference** at
@@ -123,7 +151,7 @@ elsewhere for L4. Everything in the repo maps to one of these layers.
 | --- | --- | --- |
 | **L1** Developer defaults | Shell-init env vars (`UV_EXCLUDE_NEWER`, `NPM_CONFIG_BEFORE`, etc.) that harden every `install` from an interactive shell | The four per-ecosystem playbooks; [`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md) as the portable drop-in |
 | **L2** Project policy | Committed lockfiles, build-script allowlists, registry pins, workspace-level config | “Step 2” of each playbook; `pnpm-workspace.yaml`, `Cargo.lock`, `uv.lock`, `go.sum` |
-| **L3** CI enforcement | Hardening env vars inside CI runners; scanner jobs that fail merge on findings | “CI Enforcement” section of each playbook |
+| **L3** CI enforcement | Hardening env vars inside CI runners; scanner jobs that fail merge on findings; publish-pipeline hardening (read-only PR caches, SHA-pinned actions, runner egress block, OIDC/staged publishing, provenance monitoring) | “CI Enforcement” section of each playbook; the cross-ecosystem [CI/CD playbook](guidelines/hardening-ci-cd.md) |
 | **L4** Org registry / proxy | Internal mirror with quarantine and delay policy (Artifactory, Nexus, Verdaccio, devpi) | **Out of scope for hands-on guidance.** Strongest team-level control; implementations vary by org. Use a controlled `GOPROXY` and crates.io vendoring for Go and Rust. |
 | **L5** Untrusted-repo sandbox | Container or namespace-isolated execution for the first run of any third-party repo | [`guidelines/untrusted-repo-first-run.md`](guidelines/untrusted-repo-first-run.md) |
 | **L6** Incident response | Per-incident credential rotation, persistence checks, downgrade, audit-log entry | “If You Have Hits” sections in each playbook; [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md) |
@@ -174,12 +202,124 @@ the methodology is what the repo is really about.
 
 **What this neutralises:** the fast-yanked named incidents above.
 **What it does not neutralise on its own:** long-lived compromises that survive past the
-cool-off window (BoltDB cached in the module proxy for ~3 years; ctx ATO published for
-~10 days), lockfiles that already captured a malicious version before the control was
-active, and runtime payloads in wheels or proc-macros that execute on import or build
-rather than at install time.
-Those require additional controls: lockfile review, typo-resistance checks, and the
-per-ecosystem build-time controls in the playbooks.
+cool-off window (BoltDB and `shopsprint/decimal` cached in the Go module proxy for ~3
+years; ctx ATO published for ~10 days), lockfiles that already captured a malicious
+version before the control was active, runtime payloads in wheels or proc-macros (and
+`require()`-time payloads like node-ipc) that execute on import or build rather than at
+install time, and **publish-pipeline compromises** where the malicious version ships
+from the legitimate maintainer’s own CI, sometimes carrying valid (forged) provenance,
+as in the May 2026 @antv worm.
+Those require additional controls: lockfile review, typo-resistance checks, the
+per-ecosystem build-time controls in the playbooks, and the publish-side controls in the
+[CI/CD playbook](guidelines/hardening-ci-cd.md) (OIDC trusted publishing, staged
+publishing, runner hardening, provenance monitoring).
+
+## The Default Policy: A 14-Day Cool-Off
+
+**Never install or upgrade to a package version less than 14 days old, unless a
+documented exception applies.** This is the single default this repo recommends across
+every ecosystem.
+The control differs by tool (the per-ecosystem playbooks have the exact,
+version-specific recipes and verification):
+
+| Tool | 14-day control |
+| --- | --- |
+| npm (any) | `NPM_CONFIG_BEFORE=<now-minus-14d>` |
+| npm 11.10+ | `NPM_CONFIG_MIN_RELEASE_AGE=14` (days) |
+| pnpm 10.16-10.x | `NPM_CONFIG_MINIMUM_RELEASE_AGE=20160` (minutes) |
+| pnpm 11+ | `minimumReleaseAge: 20160` in `pnpm-workspace.yaml` (pnpm 11 ignores `NPM_CONFIG_*`) |
+| uv | `UV_EXCLUDE_NEWER="14 days"` |
+| pip 26.1+ | `PIP_UPLOADED_PRIOR_TO="P14D"` |
+| Cargo / Go | no native gate: committed lockfile + `--locked` / `-mod=readonly` + human review before re-resolution |
+
+**The general principle.** A cool-off works because the registry and researchers detect
+and yank malicious versions while legitimate versions keep accruing age.
+So the *only* thing the window length trades off is detection coverage against how stale
+your dependencies are: a longer window catches more of the slow-detection tail, and its
+only cost is waiting longer for legitimate updates.
+The benefit curve flattens out (most incidents die in hours to a few days), while the
+staleness cost grows roughly linearly, so there is a knee in the curve rather than a
+single magic number.
+**14 days is the recommended floor**, not a ceiling.
+
+Why at least 14 days:
+
+- **Detection window.** Most malicious publishes are reported and yanked within 3-7
+  days; 14 days is a generous buffer past that median.
+- **It covers the realistic tail, not just the fast cases.** Many incidents die in
+  minutes (Bitwarden ~93 min, @antv ~22 min), but the value of a cool-off is set by the
+  *slowest*-detected incidents.
+  The `ctx` PyPI takeover was malicious for ~10 days.
+  A 7-day window misses it; a 14-day window catches it.
+- **Patch bumps are where malware hides.** Many compromises arrive as a `1.2.3 -> 1.2.4`
+  patch. A trailing-age window neutralises the whole “fresh patch is malicious” class
+  regardless of which dependency moved.
+- **The cost is asymmetric.** Waiting 14 days on a routine upgrade is essentially free;
+  the only real cost is an urgent security patch, which the exception process handles.
+
+**Pick a larger number if you can.** Nothing here caps the window at 14: a 30-, 60-, or
+90-day cool-off is strictly safer, and high-risk environments (machines with publish
+tokens or production access) should go higher.
+The “Live X hours” timings in [`compromised-packages.md`](compromised-packages.md) are
+the evidence base, and pnpm 11 ships a 1-day default (`minimumReleaseAge: 1440`) as the
+ecosystem’s own floor, so treat 14 days as a balanced minimum and lengthen it to taste.
+
+Scope: applies to `dependencies`, `devDependencies` (historically *more* dangerous,
+since build tooling runs with full developer privileges), `peerDependencies`, and
+`optionalDependencies`; to new installs and upgrades; and to transitive dependencies to
+the extent the package manager enforces it.
+Pins resolved before adopting the policy are grandfathered until their next planned
+upgrade.
+
+### The Exception Process
+
+When a version inside the 14-day window is genuinely needed (for example a CVE patch
+published yesterday that fixes a vulnerability you are exposed to), take the exception
+*explicitly and on the record*:
+
+- State the reason in the commit message or PR description: the CVE ID (or vulnerability
+  description if none yet), a link to the upstream release notes, and a `Reviewed-by:`
+  sign-off line.
+- Pin the exact `package@version`, not a range.
+  Verify it against the [authoritative sources](#authoritative-sources).
+- Log it in `supply-chain-audit-log.md` with a follow-up to confirm the version was not
+  yanked after the fact.
+
+No exception is “trivial” (even a `prettier` patch is in scope): the point of the rule
+is that we do not trust ourselves to eyeball which fresh versions are safe.
+**Agents never self-approve an exception**; they prepare the record above and a human
+signs off. See [`guidelines/strict-mode.md`](guidelines/strict-mode.md) for the full
+Emergency-Exception record format.
+
+### Update Discipline: The Safest Update Is The One You Skip
+
+A cool-off decides *when* to take an update.
+The prior question is *whether* to update at all.
+Each update is fresh attack surface, and updating has repeatedly proven riskier than the
+latent bugs it fixes.
+Mitchell Hashimoto (HashiCorp, Ghostty) puts the strong form of this well:
+
+> Fork your dependencies, trim them to only your use case, never update unless it breaks
+> for your users. [...] updating is way riskier than latent bugs (which can be tracked
+> and CVEs monitored).
+> If you are updating a dependency, it’s on you to analyze every single commit in the
+> full transitive set of dependencies.
+> If you don’t see anything compelling, don’t update!
+> [...] Don’t update for the sake of it.
+
+This is one influential school, and the absolutist version trades supply-chain risk for
+the risk of *not* applying a needed security fix.
+The balance this repo recommends:
+
+- **Default to not updating.** Don’t bump a dependency without a concrete reason ("show
+  me the commit we need"). Minimise the dependency count, and prefer vendoring or
+  pinning for small, stable libraries.
+- **Monitor CVEs so the exception is data-driven.** The post-install audit commands
+  (`npm audit`, `pip-audit`, `cargo audit`, `govulncheck`) and the IOC feeds are how you
+  learn a real security update is needed, which is exactly when the 14-day exception
+  applies.
+- **When you do update, review the change set,** not just the version number, and then
+  still wait out the 14-day window unless it is a security exception.
 
 ## Maintaining This Repo
 

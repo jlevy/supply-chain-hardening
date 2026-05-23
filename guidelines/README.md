@@ -11,6 +11,10 @@ detail live in the companion research doc in [`../research/`](../research/).
 | PyPI (Python) | [hardening-pypi.md](hardening-pypi.md) |
 | crates.io (Rust) | [hardening-crates.md](hardening-crates.md) |
 | Go modules | [hardening-go.md](hardening-go.md) |
+| CI/CD and publish pipeline (cross-ecosystem) | [hardening-ci-cd.md](hardening-ci-cd.md) |
+
+The CI/CD guide is cross-ecosystem: it hardens the publish side (GitHub Actions, release
+tokens, provenance) that the per-ecosystem install-side guides do not cover.
 
 Update procedure: [`../self-update-instructions.md`](../self-update-instructions.md) →
 “Updating Hardening Guidelines”.

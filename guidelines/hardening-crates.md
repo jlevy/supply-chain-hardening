@@ -1,6 +1,6 @@
 # crates.io Operational Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -140,9 +140,10 @@ cargo audit
 
 ### Step 2: Grep For Known IOCs From The Most Recent Named Attacks
 
-The most relevant crates.io attacks as of 2026-05-12. The cross-ecosystem table is in
-[`compromised-packages.md`](../compromised-packages.md); this is the crates.io
-quick-grep extract:
+The most relevant crates.io attacks as of 2026-05-23 (no new incidents in May 2026; the
+npm/PyPI worms did not reach crates.io).
+The cross-ecosystem table is in [`compromised-packages.md`](../compromised-packages.md);
+this is the crates.io quick-grep extract:
 
 | Date | Name | Quick IOC Pattern |
 | --- | --- | --- |

@@ -1,6 +1,6 @@
 # Crates.io Supply Chain Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -149,8 +149,16 @@ New rows go there first; this section does not duplicate them.
 (1) rotate every credential reachable from any machine that compiled the affected crate,
 and (2) remove the dependency, regenerate `Cargo.lock`, and rebuild.
 
-**Trend line:** through early 2026, crates.io incidents appear at a pace of roughly one
+**Trend line:** through May 2026, crates.io incidents appear at a pace of roughly one
 named campaign every 2-3 months, compared to weekly-to-monthly for npm.
+A May 2026 review of the RustSec advisory database and the incident feeds found **no new
+malicious-crate incidents** in that month, and confirmed that the npm/PyPI worm
+campaigns (Shai-Hulud, Mini Shai-Hulud, TeamPCP) did not propagate to crates.io.
+The most recent crates.io incident remains `mysten-metrics@9.0.3` (build.rs
+exfiltration, April 2026). The dominant crates.io vector stays runtime/build-time
+payloads in typosquats (`build.rs`, proc-macros, `#[ctor]`), which a release-age delay
+does not address; the `--locked` + `cargo audit`/`deny`/`vet` controls in Part 3 remain
+the right defense.
 
 ## Incident Summaries
 

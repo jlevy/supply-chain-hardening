@@ -1,6 +1,6 @@
 # PyPI Supply Chain Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -66,9 +66,9 @@ Across the named incidents in this document, the playbook collapses to four prim
    installs the higher-versioned public package over the intended private one.
 
 **Common lifetime:** malicious versions live for minutes to hours before researchers
-detect them and the package is yanked or quarantined by PyPI. A 7-day rolling quarantine
-is effective: by the time a quarantined version becomes old enough to install, every
-named incident below has already been remediated.
+detect them and the package is yanked or quarantined by PyPI. A 14-day rolling
+quarantine is effective: by the time a quarantined version becomes old enough to
+install, every named incident below has already been remediated.
 
 ## Why Standard Practices Are Not Enough
 
@@ -132,6 +132,13 @@ and (2) downgrade to the immediately-prior version.
 **Trend line:** PyPI attacks have been less frequent than npm but are accelerating.
 The May 2026 cross-ecosystem propagation from the TanStack npm worm to PyPI marks a new
 phase where npm and PyPI hardening are no longer independent concerns.
+The dominant recent vector is a **stolen PyPI publish token used from CI**: TeamPCP
+(LiteLLM, then `durabletask` on 2026-05-19) and the Mini Shai-Hulud wave
+(`pytorch-lightning`, `mistralai`, `guardrails-ai`) all uploaded trojanized builds
+directly via the API with no matching source-control tags or CI runs.
+Publish-side controls (OIDC trusted publishing, scoped/expiring tokens) are now as
+important as the install-side quarantine; see
+[`../guidelines/hardening-ci-cd.md`](../guidelines/hardening-ci-cd.md).
 
 ## ctx Account Takeover (May 2022)
 
@@ -249,12 +256,63 @@ The `mistralai` payload includes country-aware logic (avoids Russian-language
 environments) and a geofenced destructive branch.
 The `guardrails-ai==0.10.1` payload executes on import.
 
+**Advisories:** `GHSA-wx9m-wx4f-4cmg` (`mistralai`); `GHSA-xmpw-2vmm-p4p6` /
+CVE-2026-45758 (`guardrails-ai`); the npm side is the umbrella `GHSA-g7cv-rxg3-hmpx` /
+CVE-2026-45321.
+
 **Sources:**
 [The Hacker News](https://thehackernews.com/2026/05/mini-shai-hulud-worm-compromises.html);
 [SafeDep](https://safedep.io/mass-npm-supply-chain-attack-tanstack-mistral/);
 [Wiz](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised);
 [BleepingComputer](https://www.bleepingcomputer.com/news/security/shai-hulud-attack-ships-signed-malicious-tanstack-mistral-npm-packages/);
 [SecurityWeek](https://www.securityweek.com/tanstack-mistral-ai-uipath-hit-in-fresh-supply-chain-attack/).
+
+## PyTorch Lightning (April 2026)
+
+On April 30, 2026, malicious `pytorch-lightning` versions were published to PyPI using
+stolen maintainer credentials, part of the same Mini Shai-Hulud campaign.
+They were quarantined roughly 42 minutes after publication.
+
+**Affected versions:** `pytorch-lightning==2.6.2`, `pytorch-lightning==2.6.3`. Last
+known clean release: `pytorch-lightning==2.6.1`. This is the PyPI counterpart to the npm
+`lightning@2.6.2` / `2.6.3` versions in the same wave.
+
+**Payload:** an obfuscated payload staged in a hidden `_runtime` directory that executes
+on import; it harvests credentials, tokens, and cloud secrets and plants persistence
+hooks targeting Claude Code and VS Code, among the first malware observed deliberately
+targeting AI coding agents.
+
+**Advisory:** `GHSA-w37p-236h-pfx3` / CVE-2026-44484.
+
+**Sources:**
+[GHSA-w37p-236h-pfx3](https://github.com/Lightning-AI/pytorch-lightning/security/advisories/GHSA-w37p-236h-pfx3);
+[Semgrep](https://semgrep.dev/blog/2026/malicious-dependency-in-pytorch-lightning-used-for-ai-training/);
+[Socket](https://socket.dev/blog/lightning-pypi-package-compromised).
+
+## Microsoft durabletask / TeamPCP Wave 4 (May 2026)
+
+On May 19, 2026, three trojanized versions of `durabletask` (the Python SDK for the
+Durable Task Framework, ~417K monthly downloads) were published within a 35-minute
+window and quarantined by PyPI within hours.
+The PyPI token had been harvested from an earlier GitHub breach; the modified builds
+were uploaded via twine with no corresponding tags, commits, or CI runs in the source
+repo, the now-familiar “publish from a stolen token, not from source” pattern.
+
+**Affected versions:** `durabletask==1.4.1`, `durabletask==1.4.2`, `durabletask==1.4.3`.
+Last known clean release: `durabletask==1.4.0`.
+
+**Payload:** a dropper at the top of the source files fetches a 28 KB second-stage
+zipapp (`rope.pyz`) from a freshly-registered C2 and executes it silently.
+The second stage is a modular credential harvester (AWS, Azure, GCP, Kubernetes,
+HashiCorp Vault, 1Password, Bitwarden, `pass`, `gopass`, and 90+ developer-tool configs)
+with worm propagation: inside AWS it spreads to other instances via SSM; inside
+Kubernetes via `kubectl exec`.
+
+**Sources:** [Wiz](https://www.wiz.io/blog/durabletask-teampcp-supply-chain-attack);
+[Snyk](https://snyk.io/blog/durabletask-pypi-supply-chain-attack/);
+[Endor Labs](https://www.endorlabs.com/learn/trojanized-microsoft-sdk-durabletask-1-4-1-through-1-4-3-deliver-credential-stealing-malware);
+[SafeDep](https://safedep.io/malicious-durabletask-pypi-supply-chain-attack/);
+[StepSecurity](https://www.stepsecurity.io/blog/microsofts-durabletask-pypi-package-compromised-in-supply-chain-attack).
 
 * * *
 
@@ -317,24 +375,24 @@ Apply all three.
 
 Refuses to install any version published after a rolling cutoff.
 
-- **uv:** `UV_EXCLUDE_NEWER="7 days"`. Accepts friendly durations natively.
+- **uv:** `UV_EXCLUDE_NEWER="14 days"`. Accepts friendly durations natively.
   No date arithmetic needed.
   The environment variable works for `uv pip install`, `uv sync`, `uv lock`, and
   `uv add`.
-- **pip (>=26.1):** `PIP_UPLOADED_PRIOR_TO="P7D"`. ISO 8601 duration.
+- **pip (>=26.1):** `PIP_UPLOADED_PRIOR_TO="P14D"`. ISO 8601 duration.
   Introduced in pip 26.0 with absolute timestamps; relative-duration support added in
   pip 26.1 (April 2026).
 - **pip (<26.1):** no native rolling quarantine.
   Compute an absolute timestamp in shell init:
-  `export PIP_UPLOADED_PRIOR_TO="$(date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"`.
+  `export PIP_UPLOADED_PRIOR_TO="$(date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"`.
 - **pdm:** `pdm lock --exclude-newer <date>` and `pdm install --exclude-newer <date>`.
   Accepts ISO 8601 timestamps and relative durations in `N{d|h|w}` format (e.g. `7d`,
   `3w`). Configurable in `pyproject.toml` under `[tool.pdm.resolution]`.
 - **poetry (>=2.4.0):** `solver.min-release-age` in Poetry’s config.
   Filters package versions by upload timestamp during dependency resolution.
   Requires the package source to expose upload timestamps.
-  Configure with `poetry config solver.min-release-age 7` (days).
-  Available since Poetry 2.4.0 (May 2026).
+  Configure with `poetry config solver.min-release-age 14` (days; the repo-wide
+  default). Available since Poetry 2.4.0 (May 2026).
 - **pipx:** inherits from pip or uv depending on backend; set the corresponding env var.
 - **conda/mamba:** no native equivalent.
 
@@ -396,7 +454,7 @@ defeating registry tampering and man-in-the-middle attacks.
 
 | Control | pip >=26.1 | uv | pipx | poetry | pdm | conda/mamba |
 | --- | :---: | :---: | :---: | :---: | :---: | :---: |
-| Date-pinned quarantine | `--uploaded-prior-to` (rolling P7D) | `--exclude-newer` (rolling “7 days”) | inherits from backend | `solver.min-release-age` (days, >=2.4.0) | `--exclude-newer` (date or relative) | no |
+| Date-pinned quarantine | `--uploaded-prior-to` (rolling P14D) | `--exclude-newer` (rolling “14 days”) | inherits from backend | `solver.min-release-age` (days, >=2.4.0) | `--exclude-newer` (date or relative) | no |
 | Refuse sdist builds | `--only-binary :all:` | `--only-binary :all:` or `no-build = true` | inherits from backend | no native flag | no native flag | N/A (pre-built only) |
 | Frozen lockfile with hashes | `--require-hashes` | `uv sync --frozen` (hashes in `uv.lock`) | no lockfile | `poetry install --no-update` (hashes in `poetry.lock`) | `pdm install --frozen-lockfile` (hashes in `pdm.lock`) | `conda-lock` |
 | Hash pinning in lockfile | via `pip-compile --generate-hashes` | automatic in `uv.lock` | N/A | automatic in `poetry.lock` | automatic in `pdm.lock` | via `conda-lock` |
@@ -427,11 +485,11 @@ The same file works on macOS, Linux, and WSL.
 ```sh
 # ~/.pypi-hardening.sh -- POSIX sh; works in bash, zsh, dash, sh
 
-# Rolling 7-day quarantine for uv. Friendly duration; no date arithmetic.
-export UV_EXCLUDE_NEWER="7 days"
+# Rolling 14-day quarantine for uv. Friendly duration; no date arithmetic.
+export UV_EXCLUDE_NEWER="14 days"
 
-# Rolling 7-day quarantine for pip >=26.1. ISO 8601 duration.
-export PIP_UPLOADED_PRIOR_TO="P7D"
+# Rolling 14-day quarantine for pip >=26.1. ISO 8601 duration.
+export PIP_UPLOADED_PRIOR_TO="P14D"
 
 # Refuse source distributions. Blocks setup.py code execution at install time.
 # UV_NO_BUILD is the uv equivalent of --no-build. uv does not expose an env var
@@ -477,8 +535,8 @@ Cover both by adding the sourcer to both `~/.bash_profile` (or `~/.profile`) and
 
 ```fish
 # Append to ~/.config/fish/conf.d/pypi-hardening.fish
-set -gx UV_EXCLUDE_NEWER "7 days"
-set -gx PIP_UPLOADED_PRIOR_TO "P7D"
+set -gx UV_EXCLUDE_NEWER "14 days"
+set -gx PIP_UPLOADED_PRIOR_TO "P14D"
 set -gx PIP_ONLY_BINARY ":all:"
 set -gx UV_NO_BUILD true
 ```
@@ -489,8 +547,8 @@ Files under `~/.config/fish/conf.d/` are auto-sourced.
 ### Verification (Any Shell On macOS)
 
 ```sh
-echo "$UV_EXCLUDE_NEWER"       # 7 days
-echo "$PIP_UPLOADED_PRIOR_TO"  # P7D
+echo "$UV_EXCLUDE_NEWER"       # 14 days
+echo "$PIP_UPLOADED_PRIOR_TO"  # P14D
 echo "$PIP_ONLY_BINARY"        # :all:
 echo "$UV_NO_BUILD"            # true
 ```
@@ -534,8 +592,8 @@ units, is `environment.d`:
 
 ```ini
 # ~/.config/environment.d/pypi-hardening.conf
-UV_EXCLUDE_NEWER=7 days
-PIP_UPLOADED_PRIOR_TO=P7D
+UV_EXCLUDE_NEWER=14 days
+PIP_UPLOADED_PRIOR_TO=P14D
 PIP_ONLY_BINARY=:all:
 UV_NO_BUILD=true
 ```
@@ -550,8 +608,8 @@ Create the file if it does not exist.
 
 ```powershell
 # Append to $PROFILE
-$env:UV_EXCLUDE_NEWER = "7 days"
-$env:PIP_UPLOADED_PRIOR_TO = "P7D"
+$env:UV_EXCLUDE_NEWER = "14 days"
+$env:PIP_UPLOADED_PRIOR_TO = "P14D"
 $env:PIP_ONLY_BINARY = ":all:"
 $env:UV_NO_BUILD = "true"
 ```
@@ -568,8 +626,8 @@ Setting the variables in the user’s registry hive makes them visible to cmd, P
 and any GUI-launched process the user starts:
 
 ```powershell
-[Environment]::SetEnvironmentVariable("UV_EXCLUDE_NEWER", "7 days", "User")
-[Environment]::SetEnvironmentVariable("PIP_UPLOADED_PRIOR_TO", "P7D", "User")
+[Environment]::SetEnvironmentVariable("UV_EXCLUDE_NEWER", "14 days", "User")
+[Environment]::SetEnvironmentVariable("PIP_UPLOADED_PRIOR_TO", "P14D", "User")
 [Environment]::SetEnvironmentVariable("PIP_ONLY_BINARY", ":all:", "User")
 [Environment]::SetEnvironmentVariable("UV_NO_BUILD", "true", "User")
 ```
@@ -582,8 +640,8 @@ no init file equivalent to `.bashrc`. The `setx` command writes the same registr
 entries:
 
 ```cmd
-setx UV_EXCLUDE_NEWER "7 days"
-setx PIP_UPLOADED_PRIOR_TO "P7D"
+setx UV_EXCLUDE_NEWER "14 days"
+setx PIP_UPLOADED_PRIOR_TO "P14D"
 setx PIP_ONLY_BINARY ":all:"
 setx UV_NO_BUILD "true"
 ```
@@ -617,10 +675,10 @@ Inject the variables into the runner’s environment explicitly.
 
 ```yaml
 env:
-  UV_EXCLUDE_NEWER: "7 days"
+  UV_EXCLUDE_NEWER: "14 days"
   UV_NO_BUILD: "true"
   PIP_ONLY_BINARY: ":all:"
-  PIP_UPLOADED_PRIOR_TO: "P7D"
+  PIP_UPLOADED_PRIOR_TO: "P14D"
 
 jobs:
   install:
@@ -635,10 +693,10 @@ jobs:
 
 ```yaml
 variables:
-  UV_EXCLUDE_NEWER: "7 days"
+  UV_EXCLUDE_NEWER: "14 days"
   UV_NO_BUILD: "true"
   PIP_ONLY_BINARY: ":all:"
-  PIP_UPLOADED_PRIOR_TO: "P7D"
+  PIP_UPLOADED_PRIOR_TO: "P14D"
 ```
 
 ### CircleCI, Buildkite, Jenkins
@@ -811,8 +869,10 @@ done
 
 ### Per-Project (When Adding Or Removing Dependencies)
 
-- [ ] To intentionally install a fresh package, explicitly unset the quarantine
-  variables per command, visibly: `UV_EXCLUDE_NEWER= UV_NO_BUILD= uv add some-pkg`.
+- [ ] To intentionally install a fresh package, unset only the age gate per command,
+  visibly: `UV_EXCLUDE_NEWER= uv add some-pkg`. Keep `UV_NO_BUILD` set; unset it
+  (`UV_NO_BUILD=`) only for the separate, louder case of a package that has no wheel and
+  must be built from source.
 - [ ] After lockfile change, run `osv-scanner scan source -L <lockfile>` or `pip-audit`.
 - [ ] Commit lockfile.
 
@@ -836,14 +896,16 @@ done
 
 ## Common Questions
 
-**Does the date quarantine block legitimate security patches that landed in the last 7
+**Does the date quarantine block legitimate security patches that landed in the last 14
 days?** Yes, by design.
-The trade-off: 7 days of delayed security patches versus zero days of supply-chain
-malware exposure. Historically the latter has been the bigger source of incidents for
-typical projects. For genuinely urgent CVEs (a 0-day RCE), opt out per command.
+The trade-off: 14 days of delayed security patches versus the supply-chain-malware
+exposure window. Historically the latter has been the bigger source of incidents for
+typical projects. For a genuinely urgent CVE, take the documented exception (opt out per
+command, keeping `UV_NO_BUILD` / `PIP_ONLY_BINARY` set unless a source build is truly
+unavoidable), pin the exact version, and log it.
 
 **How does this interact with Renovate or Dependabot?** Renovate supports
-`minimumReleaseAge: "7 days"` in `renovate.json`, which applies to all ecosystems
+`minimumReleaseAge: "14 days"` in `renovate.json`, which applies to all ecosystems
 including PyPI. Dependabot does not yet support release-age gating for PyPI (as of
 2026-05). Both tools’ filters are independent of the package manager’s; both should be
 on.

@@ -7,7 +7,7 @@
 Chronological record of supply-chain audits performed against this machine or
 repository. Entries are appended in reverse-chronological order (newest at top).
 Format and procedure are defined in
-[guidelines/hardening-npm.md → “Keeping A Supply Chain Audit Log”](https://github.com/jlevy/supply-chain-hardening-guidebook/blob/main/guidelines/hardening-npm.md#keeping-a-supply-chain-audit-log).
+[guidelines/hardening-npm.md → “Keeping A Supply Chain Audit Log”](https://github.com/jlevy/supply-chain-hardening/blob/main/guidelines/hardening-npm.md#keeping-a-supply-chain-audit-log).
 
 Every audit run leaves an entry here.
 The goal: a future reader (human or agent) can reconstruct exactly what was checked,
