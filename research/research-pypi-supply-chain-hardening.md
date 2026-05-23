@@ -1,6 +1,6 @@
 # PyPI Supply Chain Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -132,6 +132,13 @@ and (2) downgrade to the immediately-prior version.
 **Trend line:** PyPI attacks have been less frequent than npm but are accelerating.
 The May 2026 cross-ecosystem propagation from the TanStack npm worm to PyPI marks a new
 phase where npm and PyPI hardening are no longer independent concerns.
+The dominant recent vector is a **stolen PyPI publish token used from CI**: TeamPCP
+(LiteLLM, then `durabletask` on 2026-05-19) and the Mini Shai-Hulud wave
+(`pytorch-lightning`, `mistralai`, `guardrails-ai`) all uploaded trojanized builds
+directly via the API with no matching source-control tags or CI runs.
+Publish-side controls (OIDC trusted publishing, scoped/expiring tokens) are now as
+important as the install-side quarantine; see
+[`../guidelines/hardening-ci-cd.md`](../guidelines/hardening-ci-cd.md).
 
 ## ctx Account Takeover (May 2022)
 
@@ -249,12 +256,63 @@ The `mistralai` payload includes country-aware logic (avoids Russian-language
 environments) and a geofenced destructive branch.
 The `guardrails-ai==0.10.1` payload executes on import.
 
+**Advisories:** `GHSA-wx9m-wx4f-4cmg` (`mistralai`); `GHSA-xmpw-2vmm-p4p6` /
+CVE-2026-45758 (`guardrails-ai`); the npm side is the umbrella `GHSA-g7cv-rxg3-hmpx` /
+CVE-2026-45321.
+
 **Sources:**
 [The Hacker News](https://thehackernews.com/2026/05/mini-shai-hulud-worm-compromises.html);
 [SafeDep](https://safedep.io/mass-npm-supply-chain-attack-tanstack-mistral/);
 [Wiz](https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised);
 [BleepingComputer](https://www.bleepingcomputer.com/news/security/shai-hulud-attack-ships-signed-malicious-tanstack-mistral-npm-packages/);
 [SecurityWeek](https://www.securityweek.com/tanstack-mistral-ai-uipath-hit-in-fresh-supply-chain-attack/).
+
+## PyTorch Lightning (April 2026)
+
+On April 30, 2026, malicious `pytorch-lightning` versions were published to PyPI using
+stolen maintainer credentials, part of the same Mini Shai-Hulud campaign.
+They were quarantined roughly 42 minutes after publication.
+
+**Affected versions:** `pytorch-lightning==2.6.2`, `pytorch-lightning==2.6.3`. Last
+known clean release: `pytorch-lightning==2.6.1`. This is the PyPI counterpart to the npm
+`lightning@2.6.2` / `2.6.3` versions in the same wave.
+
+**Payload:** an obfuscated payload staged in a hidden `_runtime` directory that executes
+on import; it harvests credentials, tokens, and cloud secrets and plants persistence
+hooks targeting Claude Code and VS Code, among the first malware observed deliberately
+targeting AI coding agents.
+
+**Advisory:** `GHSA-w37p-236h-pfx3` / CVE-2026-44484.
+
+**Sources:**
+[GHSA-w37p-236h-pfx3](https://github.com/Lightning-AI/pytorch-lightning/security/advisories/GHSA-w37p-236h-pfx3);
+[Semgrep](https://semgrep.dev/blog/2026/malicious-dependency-in-pytorch-lightning-used-for-ai-training/);
+[Socket](https://socket.dev/blog/lightning-pypi-package-compromised).
+
+## Microsoft durabletask / TeamPCP Wave 4 (May 2026)
+
+On May 19, 2026, three trojanized versions of `durabletask` (the Python SDK for the
+Durable Task Framework, ~417K monthly downloads) were published within a 35-minute
+window and quarantined by PyPI within hours.
+The PyPI token had been harvested from an earlier GitHub breach; the modified builds
+were uploaded via twine with no corresponding tags, commits, or CI runs in the source
+repo, the now-familiar “publish from a stolen token, not from source” pattern.
+
+**Affected versions:** `durabletask==1.4.1`, `durabletask==1.4.2`, `durabletask==1.4.3`.
+Last known clean release: `durabletask==1.4.0`.
+
+**Payload:** a dropper at the top of the source files fetches a 28 KB second-stage
+zipapp (`rope.pyz`) from a freshly-registered C2 and executes it silently.
+The second stage is a modular credential harvester (AWS, Azure, GCP, Kubernetes,
+HashiCorp Vault, 1Password, Bitwarden, `pass`, `gopass`, and 90+ developer-tool configs)
+with worm propagation: inside AWS it spreads to other instances via SSM; inside
+Kubernetes via `kubectl exec`.
+
+**Sources:** [Wiz](https://www.wiz.io/blog/durabletask-teampcp-supply-chain-attack);
+[Snyk](https://snyk.io/blog/durabletask-pypi-supply-chain-attack/);
+[Endor Labs](https://www.endorlabs.com/learn/trojanized-microsoft-sdk-durabletask-1-4-1-through-1-4-3-deliver-credential-stealing-malware);
+[SafeDep](https://safedep.io/malicious-durabletask-pypi-supply-chain-attack/);
+[StepSecurity](https://www.stepsecurity.io/blog/microsofts-durabletask-pypi-package-compromised-in-supply-chain-attack).
 
 * * *
 

@@ -4,7 +4,7 @@
 curated watch list of recent compromises across npm, PyPI, crates.io, and Go modules.
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance\
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 ## Quick Start
 
@@ -22,6 +22,13 @@ Each is a copy-pasteable Ten-Minute Setup.
 | **PyPI / Python** | [guidelines/hardening-pypi.md](guidelines/hardening-pypi.md) |
 | **crates.io / Rust** | [guidelines/hardening-crates.md](guidelines/hardening-crates.md) |
 | **Go modules** | [guidelines/hardening-go.md](guidelines/hardening-go.md) |
+| **CI/CD and publish pipeline** (cross-ecosystem) | [guidelines/hardening-ci-cd.md](guidelines/hardening-ci-cd.md) |
+
+The four per-ecosystem playbooks harden the **install** side.
+If you publish packages, or your repo releases via GitHub Actions, also apply the
+cross-ecosystem [CI/CD playbook](guidelines/hardening-ci-cd.md): most 2026 incidents
+(TanStack, @antv, Megalodon, `durabletask`) compromised the publish pipeline, not a
+consumer.
 
 ### Harden All Ecosystems
 
@@ -69,6 +76,7 @@ When the user asks you to harden, audit, or assess a package-manager supply chai
 | “Harden my PyPI setup” | Apply [guidelines/hardening-pypi.md](guidelines/hardening-pypi.md). Verify, log. |
 | “Harden my Rust setup” | Apply [guidelines/hardening-crates.md](guidelines/hardening-crates.md). Verify, log. |
 | “Harden my Go setup” | Apply [guidelines/hardening-go.md](guidelines/hardening-go.md). Verify, log. |
+| “Harden my CI / release pipeline” or “We publish packages” | Apply [guidelines/hardening-ci-cd.md](guidelines/hardening-ci-cd.md): read-only PR caches, SHA-pinned actions, runner egress block, OIDC/staged publishing, provenance monitoring. |
 | “Harden everything on this machine” | Walk [Harden All Ecosystems](#harden-all-ecosystems) end to end. One audit-log entry per ecosystem. |
 | “I just installed X. Am I compromised?” | Start at [compromised-packages.md](compromised-packages.md). For npm, run `uv run scripts/audit_npm.py --packages <pkg@ver>`. For other ecosystems, `osv-scanner` per the playbook. Log findings. |
 | “Add a new ecosystem (RubyGems, NuGet, …)” | Follow [self-update-instructions.md](self-update-instructions.md) → “Adding A New Ecosystem”. Cite multiple [authoritative sources](#authoritative-sources). |
@@ -91,7 +99,9 @@ IDEs and agents that auto-load that filename.
 
 - Per-ecosystem **hardening guides** (the four
   [playbooks above](#harden-a-single-ecosystem)) with copy-pasteable shell and CI
-  configuration.
+  configuration, plus a cross-ecosystem
+  [CI/CD and publish-pipeline guide](guidelines/hardening-ci-cd.md) for the GitHub
+  Actions and release-token vectors behind the 2026 worm campaigns.
 - Per-ecosystem **research docs** in [`research/`](research/) explaining the threat
   model, attack mechanisms, and defensive trade-offs.
 - A **strict-mode reference** at
@@ -123,7 +133,7 @@ elsewhere for L4. Everything in the repo maps to one of these layers.
 | --- | --- | --- |
 | **L1** Developer defaults | Shell-init env vars (`UV_EXCLUDE_NEWER`, `NPM_CONFIG_BEFORE`, etc.) that harden every `install` from an interactive shell | The four per-ecosystem playbooks; [`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md) as the portable drop-in |
 | **L2** Project policy | Committed lockfiles, build-script allowlists, registry pins, workspace-level config | “Step 2” of each playbook; `pnpm-workspace.yaml`, `Cargo.lock`, `uv.lock`, `go.sum` |
-| **L3** CI enforcement | Hardening env vars inside CI runners; scanner jobs that fail merge on findings | “CI Enforcement” section of each playbook |
+| **L3** CI enforcement | Hardening env vars inside CI runners; scanner jobs that fail merge on findings; publish-pipeline hardening (read-only PR caches, SHA-pinned actions, runner egress block, OIDC/staged publishing, provenance monitoring) | “CI Enforcement” section of each playbook; the cross-ecosystem [CI/CD playbook](guidelines/hardening-ci-cd.md) |
 | **L4** Org registry / proxy | Internal mirror with quarantine and delay policy (Artifactory, Nexus, Verdaccio, devpi) | **Out of scope for hands-on guidance.** Strongest team-level control; implementations vary by org. Use a controlled `GOPROXY` and crates.io vendoring for Go and Rust. |
 | **L5** Untrusted-repo sandbox | Container or namespace-isolated execution for the first run of any third-party repo | [`guidelines/untrusted-repo-first-run.md`](guidelines/untrusted-repo-first-run.md) |
 | **L6** Incident response | Per-incident credential rotation, persistence checks, downgrade, audit-log entry | “If You Have Hits” sections in each playbook; [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md) |
@@ -174,12 +184,17 @@ the methodology is what the repo is really about.
 
 **What this neutralises:** the fast-yanked named incidents above.
 **What it does not neutralise on its own:** long-lived compromises that survive past the
-cool-off window (BoltDB cached in the module proxy for ~3 years; ctx ATO published for
-~10 days), lockfiles that already captured a malicious version before the control was
-active, and runtime payloads in wheels or proc-macros that execute on import or build
-rather than at install time.
-Those require additional controls: lockfile review, typo-resistance checks, and the
-per-ecosystem build-time controls in the playbooks.
+cool-off window (BoltDB and `shopsprint/decimal` cached in the Go module proxy for ~3
+years; ctx ATO published for ~10 days), lockfiles that already captured a malicious
+version before the control was active, runtime payloads in wheels or proc-macros (and
+`require()`-time payloads like node-ipc) that execute on import or build rather than at
+install time, and **publish-pipeline compromises** where the malicious version ships
+from the legitimate maintainer’s own CI, sometimes carrying valid (forged) provenance,
+as in the May 2026 @antv worm.
+Those require additional controls: lockfile review, typo-resistance checks, the
+per-ecosystem build-time controls in the playbooks, and the publish-side controls in the
+[CI/CD playbook](guidelines/hardening-ci-cd.md) (OIDC trusted publishing, staged
+publishing, runner hardening, provenance monitoring).
 
 ## Maintaining This Repo
 

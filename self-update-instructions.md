@@ -1,6 +1,6 @@
 # Self-Update Instructions
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -10,9 +10,12 @@ Three doc categories require updates on different cadences:
 - **Compromised-packages table** (`compromised-packages.md`): canonical cross-ecosystem
   record of named supply-chain incidents.
   Updated whenever a new incident is multi-source verified.
-- **Hardening guidelines** (`hardening-<ecosystem>.md`): brief operational action lists.
+- **Hardening guidelines** (`hardening-<ecosystem>.md`, plus the cross-ecosystem
+  `hardening-ci-cd.md`): brief operational action lists.
   Update when configuration recipes change (new env var, new flag, new tool replacing an
-  old one).
+  old one). `hardening-ci-cd.md` covers publish-side and GitHub Actions controls that are
+  not specific to one registry; update it when a CI/CD control changes (new GitHub
+  Actions setting, new trusted/staged-publishing flow, new runner-hardening option).
 - **Research docs** (`research-<ecosystem>-supply-chain-hardening.md`): full
   threat-model and per-ecosystem-implementation references.
   Update when an ecosystem-specific control set or mechanism changes, or when there is
@@ -157,7 +160,7 @@ before bumping the Last Verified Against table.
 
 | Tool | Version | Verified date | Validator | Notes |
 | --- | --- | --- | --- | --- |
-| npm | 11.x | 2026-05-12 | initial author | `NPM_CONFIG_MIN_RELEASE_AGE` requires 11.10+ |
+| npm | 11.x | 2026-05-23 | agent-assisted refresh | `NPM_CONFIG_MIN_RELEASE_AGE` requires 11.10+; staged publishing (`npm stage publish` / `npm stage approve`) GA 2026-05-20 requires 11.15+; OIDC trusted publishing requires 11.5.1+ |
 | pnpm | 10.x | 2026-05-12 | initial author | `MINIMUM_RELEASE_AGE` requires 10.16.0+; `strictDepBuilds` / `allowBuilds` per 10.26+ |
 | pip | 26.1 | 2026-05-12 | initial author | `PIP_UPLOADED_PRIOR_TO` accepts ISO 8601 duration in 26.1+ |
 | uv | latest | 2026-05-12 | initial author | `UV_NO_BUILD` documented; `UV_ONLY_BINARY` confirmed not a real env var |

@@ -12,8 +12,8 @@
 1. **Where the package manager supports it, never install a package version newer than 7
    days old** without explicit human approval.
    Most fast-yanked malicious versions in the 2025-2026 wave (qix, Shai-Hulud 1.0/2.0,
-   Axios, TanStack, Ultralytics, LiteLLM) lived for minutes to hours; a one-week
-   cooldown blocks them.
+   Axios, TanStack, Ultralytics, LiteLLM, node-ipc, @antv Mini Shai-Hulud) lived for
+   minutes to hours; a one-week cooldown blocks them.
    Native release-age gating exists for **npm/pnpm, uv, pip 26.1+, poetry 2.4+, and
    pdm**. For **Cargo and Go modules**, the equivalent control is “do not re-resolve
    without a human review”: always pass `--locked` (Cargo) and keep `go.sum` /
@@ -52,10 +52,13 @@ tokens, or hijack cryptocurrency transactions at runtime.
 A 7-day install cooldown plus disabled install scripts neutralises the dominant
 fast-yanked-incident pattern.
 It does not neutralise long-lived typosquats that survive past the cooldown, lockfiles
-that already captured a bad version before the control was active, or runtime payloads
-in wheels and proc-macros that execute on import or build.
-Those need lockfile review, typosquatting checks, and the ecosystem-specific build-time
-controls described in the guidebook.
+that already captured a bad version before the control was active, payloads that fire on
+import or `require()` rather than via an install script (node-ipc), or compromises of
+the publish pipeline itself (the May 2026 @antv worm shipped from legitimate CI with a
+valid, forged “verified” provenance badge, so a green badge is not proof of safety).
+Those need lockfile review, typosquatting checks, the ecosystem-specific build-time
+controls described in the guidebook, and, if you publish packages, the publish-side
+controls in `guidelines/hardening-ci-cd.md`.
 
 ## More Detail
 

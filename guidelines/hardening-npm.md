@@ -1,6 +1,6 @@
 # NPM Operational Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -8,6 +8,13 @@ The minimum action list to harden a workstation or CI runner against the 2025-20
 supply-chain attack wave, and to check whether you have already been compromised.
 Full threat model, per-platform setup, IOC feeds, and scanning tools in
 [research-npm-supply-chain-hardening.md](../research/research-npm-supply-chain-hardening.md).
+
+This guide is install-side (protecting you as a *consumer*). If you also *publish* npm
+packages, harden the release pipeline too: use OIDC trusted publishing instead of
+long-lived tokens, enable staged publishing (`npm stage publish` / `npm stage approve`,
+npm 11.15+), and follow [`hardening-ci-cd.md`](hardening-ci-cd.md).
+The May 2026 @antv worm forged a valid “verified” provenance badge, so do not treat
+provenance as proof.
 
 ## Hardening (Ten-Minute Setup)
 
@@ -81,7 +88,7 @@ npm config get before                 # date ~7 days ago
 npm config get ignore-scripts         # true
 ```
 
-`npm` warns “Unknown env config 'frozen-lockfile' / 'minimum-release-age'”. Those are
+`npm` warns “Unknown env config ‘frozen-lockfile’ / 'minimum-release-age'”. Those are
 pnpm-only features; npm still functions correctly.
 
 Env-var-only setups are not visible to GUI-launched agents or non-interactive
@@ -162,12 +169,15 @@ rationale for using a Python-stdlib script rather than a Node-based one.
 
 ### Step 2: Grep For Known IOCs From The Most Recent Named Attacks
 
-The most relevant attacks as of 2026-05-12. Canonical full list (cross-ecosystem) is in
+The most relevant attacks as of 2026-05-23. Canonical full list (cross-ecosystem) is in
 [`compromised-packages.md`](../compromised-packages.md); this is the npm quick-grep
 extract:
 
 | Date | Name | Quick IOC Pattern |
 | --- | --- | --- |
+| 2026-05-19 | @antv (Mini Shai-Hulud) | `@antv/g@6.4.1`, `@antv/g@6.5.1`, `echarts-for-react@3.1.7`, `size-sensor@1.0.4`; full list via GitHub Advisory DB `type:malware` for the `atool` scope (e.g. `GHSA-6fr3-r6r6-h4h9`). Note: forged “verified” provenance, badge is not proof |
+| 2026-05-18 | Megalodon / Tiledesk | `@tiledesk/tiledesk-server@2.18.6`, `2.18.7`, `2.18.9`, `2.18.10`, `2.18.11`, `2.18.12` (clean `2.18.5`); see [GHSA-5vfv-hpg7-77hj](https://github.com/advisories/GHSA-5vfv-hpg7-77hj) |
+| 2026-05-14 | node-ipc | `node-ipc@9.1.6`, `node-ipc@9.2.3`, `node-ipc@12.0.1`. Fires at `require()`, not via install script, so `ignore-scripts` does not block it |
 | 2026-05-11 | TanStack | `@tanstack/*` packages published 19:20-19:26 UTC; canonical list at [TanStack postmortem](https://tanstack.com/blog/npm-supply-chain-compromise-postmortem) |
 | 2026-04-30 | Intercom and lightning | `intercom-client@7.0.4`, `intercom-client@7.0.5`, `lightning@2.6.2`, `lightning@2.6.3` |
 | 2026-04-29 | SAP / `@cap-js/*` | `mbt@1.2.48`, `@cap-js/db-service@2.10.1`, `@cap-js/postgres@2.2.2`, `@cap-js/sqlite@2.2.2` |

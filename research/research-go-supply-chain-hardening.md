@@ -1,6 +1,6 @@
 # Go Supply Chain Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -198,6 +198,11 @@ system for persistence mechanisms (backdoors, SSH keys, cron jobs).
 **Trend line:** through May 2026, Go module supply-chain attacks are infrequent (roughly
 quarterly) and small in scale (1-7 modules per campaign).
 The predominant vector is typosquatting, not account takeover or worm propagation.
+Notably, the npm/PyPI worm campaigns of 2026 (Shai-Hulud, Mini Shai-Hulud, TeamPCP) did
+**not** propagate to Go modules: the worms steal npm tokens and PyPI API keys from CI
+runners, which have no Go equivalent.
+The recurring Go-specific risk remains module-proxy caching persistence (see
+`shopsprint/decimal` below), not worms.
 
 ## BoltDB Typosquat: Mechanism And Indicators (2021-2025)
 
@@ -225,6 +230,40 @@ despite the GitHub source appearing clean.
 ([Socket](https://socket.dev/blog/malicious-package-exploits-go-module-proxy-caching-for-persistence);
 [Snyk](https://snyk.io/blog/go-malicious-package-alert/);
 [The Register](https://www.theregister.com/2025/02/04/golang_supply_chain_attack/))
+
+## shopsprint/decimal Typosquat: Mechanism And Indicators (Reported 2026-05)
+
+A second long-lived proxy-cached typosquat in the BoltDB mold, disclosed by Socket in
+May 2026. It is the clearest recent reminder that the Go module proxy is an availability
+feature that doubles as an attacker persistence mechanism.
+
+**Module path:** `github.com/shopsprint/decimal@v1.3.3` (a single-letter typosquat of
+the popular `github.com/shopspring/decimal`).
+
+**Timeline:**
+
+- 2017-11-08: typosquat module first published (then benign).
+- 2023-08-19: weaponized in `v1.3.3` with a malicious `init()` function.
+- 2026-05: Socket discloses it; the GitHub repo and `shopsprint` owner account are
+  removed, but the malicious release **remains permanently served by
+  `proxy.golang.org`** and listed on `pkg.go.dev`.
+
+**Payload:** the `init()` function opens a DNS-TXT-record command-and-control channel to
+a subdomain on a free dynamic-DNS provider, polling every five minutes and passing any
+returned text directly to `os/exec` for arbitrary command execution.
+DNS-only C2 evades HTTP egress filtering, and `init()` fires on import with no further
+user action.
+
+**Lesson:** the ~33-month dwell time between weaponization and disclosure is the upper
+bound of exposure for any project that pinned an unverified `shopsprint/decimal`. The
+defenses are typo-resistance review of `go.mod` (one transposed letter is the entire
+delta), `go mod verify`, and `govulncheck` once an advisory lands.
+A frozen `go.sum` prevents silent re-resolution, but does nothing if the bad version was
+pinned originally.
+
+([Socket](https://socket.dev/blog/popular-go-decimal-library-typosquat-dns-backdoor);
+[GBHackers](https://gbhackers.com/single-letter-go-module-typosquat/);
+[CyberSecurityNews](https://cybersecuritynews.com/hackers-use-single-letter-go-module-typosquat/))
 
 ## Disk-Wiper Modules (May 2025)
 

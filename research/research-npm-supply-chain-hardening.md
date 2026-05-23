@@ -1,6 +1,6 @@
 # NPM Supply Chain Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -31,8 +31,11 @@ Bash, WSL).
 **Out of scope:** server-side npm registry mirroring (Verdaccio, JFrog Artifactory,
 Sonatype Nexus). Container image scanning.
 Runtime SBOM tracking.
-GitHub Actions `pull_request_target` mitigation (referenced briefly in attack-mechanism
-context only).
+GitHub Actions and publish-pipeline hardening (cache poisoning, `pull_request_target`,
+OIDC token theft, trusted/staged publishing, provenance verification) now have a
+dedicated cross-ecosystem guide:
+[`../guidelines/hardening-ci-cd.md`](../guidelines/hardening-ci-cd.md).
+This doc covers those vectors only as attack-mechanism context.
 
 * * *
 
@@ -42,9 +45,11 @@ The npm ecosystem has been under sustained, accelerating supply-chain attack sin
 August 2025. Recent waves use self-replicating worms that, after a single
 developer-credential phish, compromise hundreds of packages in hours via GitHub Actions
 trust boundaries and trusted-publisher flows.
-The most recent named incident at the time of writing, **TanStack on 2026-05-11**,
-pushed 84 malicious versions across 42 `@tanstack/*` packages within a six-minute window
-before detection.
+May 2026 alone saw four distinct npm incidents in nine days: **TanStack (2026-05-11)**,
+the **node-ipc** credential stealer (2026-05-14), the **Megalodon** mass GitHub-repo
+poisoning that reached `@tiledesk/tiledesk-server` (2026-05-18), and the **@antv Mini
+Shai-Hulud worm (2026-05-19)**, which compromised 639 versions across 323 packages in a
+~22-minute burst and was the first worm to forge valid Sigstore/SLSA provenance.
 
 ## What The Attacks Have In Common
 
@@ -105,9 +110,15 @@ For example: `axios@1.14.0` not `1.14.1`, `debug@4.4.1` not `4.4.2`, `chalk@5.6.
 `5.6.1`.
 
 **Trend line:** through April 2026, attacks were roughly monthly.
-May 2026 saw two within a week.
-The 7-day quarantine pattern in Part 3 was designed around this cadence; the next attack
-will almost certainly fit the same profile.
+May 2026 saw four npm incidents in nine days (TanStack, node-ipc, Megalodon/Tiledesk,
+@antv).
+The 7-day quarantine pattern in Part 3 was designed around this cadence and still
+neutralises the fast-yanked install-time class.
+Two May incidents, however, point past the install side: node-ipc fired its payload at
+`require()` time rather than via an install script, and the @antv worm forged valid
+provenance and compromised the *publish* pipeline rather than a consumer.
+Those vectors are addressed in
+[`../guidelines/hardening-ci-cd.md`](../guidelines/hardening-ci-cd.md).
 
 ## TanStack Attack: Mechanism And Indicators (2026-05-11)
 
@@ -185,6 +196,64 @@ StepSecurity’s AI Package Analyst surfaced the anomalous `optionalDependencies
 to a non-registry GitHub URL. Socket’s pipeline executed the payload in a sandbox.
 Both reported publicly within hours; npm Security yanked the tarballs server-side;
 TanStack deprecated all 84 versions and rotated/purged their GitHub Actions caches.
+
+## @antv Mini Shai-Hulud: Mechanism And Indicators (2026-05-19)
+
+The @antv wave is the most significant npm worm since Shai-Hulud 2.0 and the first to
+defeat provenance verification.
+Microsoft Security and Socket published technical analyses within a day; npm took the
+rare step of a mass credential reset.
+
+**Scale and response**
+
+- 639 malicious versions across 323 unique packages, published in a ~22-minute automated
+  burst from the compromised `atool` maintainer account (which maintained 547 packages).
+- Initial footholds were dormant packages (`jest-canvas-mock`, `size-sensor`) inactive
+  for years, so a sudden new version with added lifecycle hooks was itself a tell.
+- GitHub removed 640 packages and invalidated **61,274 npm granular access tokens** that
+  had write permission and 2FA bypass, the largest npm credential reset to date.
+
+**First forged Sigstore / SLSA provenance**
+
+The worm called Fulcio and Rekor at runtime to mint a valid signing certificate and
+transparency-log entry for every package it propagated to, so infected versions showed a
+green “verified” provenance badge.
+The lesson, now baked into the [CI/CD guide](../guidelines/hardening-ci-cd.md): a valid
+attestation proves *which pipeline* built a package, not that the pipeline was honest.
+Provenance is a signal, not a guarantee.
+
+**Payload (file-level and behavioural IOCs)**
+
+- ~499 KB obfuscated JS triggered via a `preinstall` hook; execution chain
+  `node -> shell -> bun -> payload`; exits immediately unless running on GitHub Actions
+  on Linux.
+- Scrapes secrets from the `Runner.Worker` process memory by locating the PID via
+  `/proc` and grepping for `"...","isSecret":true` patterns, the same runner-memory
+  technique as TanStack.
+- Injects a sudoers rule (`runner ALL=(ALL) NOPASSWD:ALL`) and modifies `/etc/hosts`.
+- Tertiary persistence/exfil: creates public repos with the reversed description
+  `niagA oG eW ereH :duluH-iahS` (2,200+ observed).
+- Payload SHA-256: `a68dd1e6a6e35ec3771e1f94fe796f55dfe65a2b94560516ff4ac189390dfa1c`
+  and `fb5c97557230a27460fdab01fafcfabeaa49590bafd5b6ef30501aa9e0a51142`.
+- C2: `t.m-kosche[.]com:443`.
+
+**Representative package IOCs**
+
+`@antv/g@6.4.1`, `@antv/g@6.5.1`, `echarts-for-react@3.1.7`, `size-sensor@1.0.4`. The
+full list resolves via a GitHub Advisory Database search for `type:malware` across the
+affected scope (e.g. `GHSA-6fr3-r6r6-h4h9` for `@antv/g`).
+
+**node-ipc (2026-05-14): require()-time payload**
+
+Worth noting alongside @antv because it breaks a common assumption.
+`node-ipc@9.1.6`, `@9.2.3`, and `@12.0.1` carried an identical ~80 KB stealer appended
+to the CommonJS bundle `node-ipc.cjs`. It runs on `require("node-ipc")`, **not** via an
+install script, so `ignore-scripts=true` does not stop it.
+The account was taken over by re-registering an expired email domain
+(`atlantis-software.net`). Exfiltration was over DNS TXT queries to
+`sh.azurestaticprovider.net`, which evades HTTP egress filters.
+The defense here is the release-age quarantine (the bad versions were yanked within the
+cool-off window) plus lockfile review, not `ignore-scripts`.
 
 * * *
 
@@ -945,6 +1014,14 @@ Docs”.
 - [The Hacker News: Mini Shai-Hulud Worm Compromises TanStack, Mistral AI, Guardrails AI](https://thehackernews.com/2026/05/mini-shai-hulud-worm-compromises.html)
 - [Socket: TanStack npm Packages Compromised in Mini Shai-Hulud](https://socket.dev/blog/tanstack-npm-packages-compromised-mini-shai-hulud-supply-chain-attack)
 - [SafeDep: Mass Supply Chain Attack Hits TanStack, Mistral AI npm and PyPI Packages](https://safedep.io/mass-npm-supply-chain-attack-tanstack-mistral/)
+- [Socket: node-ipc npm Package Infected with Credential Stealer (May 14 2026)](https://socket.dev/blog/node-ipc-package-compromised)
+- [Datadog Security Labs: node-ipc DNS-exfiltration credential stealer](https://securitylabs.datadoghq.com/articles/node-ipc-npm-malware-analysis/)
+- [SafeDep: Megalodon mass GitHub repo backdooring (Tiledesk, May 18 2026)](https://safedep.io/megalodon-mass-github-repo-backdooring-ci-workflows/)
+- [Microsoft Security: Mini Shai-Hulud compromised @antv npm packages (May 20 2026)](https://www.microsoft.com/en-us/security/blog/2026/05/20/mini-shai-hulud-compromised-antv-npm-packages-enable-ci-cd-credential-theft/)
+- [Socket: @antv packages compromised; npm invalidates 61,274 tokens](https://socket.dev/blog/npm-invalidates-tokens-mini-shai-hulud)
+- [Endor Labs: Mini Shai-Hulud returns with fake Sigstore badges in the @antv attack](https://www.endorlabs.com/learn/mini-shai-hulud-returns-42-malicious-npm-packages-fake-sigstore-badges-in-antv-ecosystem-attack)
+- [Bitwarden: Statement on the Checkmarx supply-chain incident (@bitwarden/cli, Apr 22 2026)](https://community.bitwarden.com/t/bitwarden-statement-on-checkmarx-supply-chain-incident/96127)
+- [The Hacker News: Trivy compromise triggers self-spreading CanisterWorm across npm](https://thehackernews.com/2026/03/trivy-supply-chain-attack-triggers-self.html)
 
 ### Tools And Feeds
 
@@ -964,6 +1041,10 @@ Docs”.
 - [npm CLI 11.10 min-release-age (Socket)](https://socket.dev/blog/npm-introduces-minimumreleaseage-and-bulk-oidc-configuration)
 - [npm min-release-age config docs](https://docs.npmjs.com/cli/v11/using-npm/config#min-release-age)
 - [Bun trusted dependencies guide](https://bun.com/docs/guides/install/trusted)
+- [npm Trusted Publishing (OIDC) docs](https://docs.npmjs.com/trusted-publishers/)
+- [npm Staged Publishing docs (GA 2026-05-20, CLI 11.15+)](https://docs.npmjs.com/staged-publishing/)
+- [GitHub changelog: staged publishing and new install-time controls for npm](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/)
+- [npm: verifying registry signatures / `npm audit signatures`](https://docs.npmjs.com/verifying-registry-signatures/)
 - [Mondoo: npm Supply Chain Security in 2026 (per-manager comparison)](https://mondoo.com/blog/npm-supply-chain-security-package-manager-defenses-2026)
 - [Aikido Endpoint launch (Apr 2026)](https://www.aikido.dev/blog/top-software-supply-chain-security-tools)
 

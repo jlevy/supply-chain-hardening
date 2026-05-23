@@ -1,6 +1,6 @@
 # PyPI Operational Hardening
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -8,6 +8,11 @@ The minimum action list to harden a workstation or CI runner against PyPI supply
 attacks, and to check whether you have already been compromised.
 Full threat model, per-platform setup, IOC feeds, and scanning tools in
 [research-pypi-supply-chain-hardening.md](../research/research-pypi-supply-chain-hardening.md).
+
+This guide is install-side.
+If you *publish* to PyPI, the dominant 2026 vector is a stolen PyPI API token used from
+CI (LiteLLM, `durabletask`): prefer PyPI Trusted Publishers (OIDC) over long-lived
+tokens and follow [`hardening-ci-cd.md`](hardening-ci-cd.md).
 
 ## Hardening (Ten-Minute Setup)
 
@@ -121,13 +126,15 @@ pip-audit
 
 ### Step 2: Grep For Known IOCs From The Most Recent Named Attacks
 
-The most relevant PyPI attacks as of 2026-05-12. The cross-ecosystem table is in
+The most relevant PyPI attacks as of 2026-05-23. The cross-ecosystem table is in
 [`compromised-packages.md`](../compromised-packages.md); this is the PyPI quick-grep
 extract:
 
 | Date | Name | Quick IOC Pattern |
 | --- | --- | --- |
+| 2026-05-19 | durabletask / TeamPCP Wave 4 | `durabletask==1.4.1`, `durabletask==1.4.2`, `durabletask==1.4.3` (clean `1.4.0`) |
 | 2026-05-11 | TanStack cross-ecosystem | `mistralai==2.4.6`, `guardrails-ai==0.10.1` |
+| 2026-04-30 | PyTorch Lightning | `pytorch-lightning==2.6.2`, `pytorch-lightning==2.6.3` (clean `2.6.1`) |
 | 2026-03-24 | LiteLLM / TeamPCP | `litellm==1.82.7`, `litellm==1.82.8` |
 | 2024-12-04 | Ultralytics | `ultralytics==8.3.41`, `8.3.42`, `8.3.45`, `8.3.46` |
 | 2022-12-25 | PyTorch torchtriton | `torchtriton==2.0.0` (nightly builds only) |
