@@ -228,3 +228,6 @@ __marimo__/
 
 # Attic: local-only working notes, reviews, scratch drafts.
 attic/
+
+# Backup files from repren and merge tools.
+*.orig
