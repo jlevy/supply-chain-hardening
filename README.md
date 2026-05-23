@@ -205,7 +205,17 @@ every ecosystem, and it is what the per-ecosystem playbooks configure
 `PIP_UPLOADED_PRIOR_TO="P14D"`, and the lockfile-discipline equivalents for Cargo and
 Go).
 
-Why 14 days specifically:
+**The general principle.** A cool-off works because the registry and researchers detect
+and yank malicious versions while legitimate versions keep accruing age.
+So the *only* thing the window length trades off is detection coverage against how stale
+your dependencies are: a longer window catches more of the slow-detection tail, and its
+only cost is waiting longer for legitimate updates.
+The benefit curve flattens out (most incidents die in hours to a few days), while the
+staleness cost grows roughly linearly, so there is a knee in the curve rather than a
+single magic number.
+**14 days is the recommended floor**, not a ceiling.
+
+Why at least 14 days:
 
 - **Detection window.** Most malicious publishes are reported and yanked within 3-7
   days; 14 days is a generous buffer past that median.
@@ -219,6 +229,13 @@ Why 14 days specifically:
   regardless of which dependency moved.
 - **The cost is asymmetric.** Waiting 14 days on a routine upgrade is essentially free;
   the only real cost is an urgent security patch, which the exception process handles.
+
+**Pick a larger number if you can.** Nothing here caps the window at 14: a 30-, 60-, or
+90-day cool-off is strictly safer, and high-risk environments (machines with publish
+tokens or production access) should go higher.
+The “Live X hours” timings in [`compromised-packages.md`](compromised-packages.md) are
+the evidence base, and pnpm 11 ships a 1-day default (`minimumReleaseAge: 1440`) as the
+ecosystem’s own floor, so treat 14 days as a balanced minimum and lengthen it to taste.
 
 Scope: applies to `dependencies`, `devDependencies` (historically *more* dangerous,
 since build tooling runs with full developer privileges), `peerDependencies`, and

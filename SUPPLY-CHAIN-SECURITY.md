@@ -15,6 +15,8 @@
    Axios, TanStack, Ultralytics, LiteLLM, node-ipc, @antv Mini Shai-Hulud) lived for
    minutes to hours, but the slowest-detected ones run longer (the `ctx` PyPI takeover
    was live ~10 days), so a 14-day cool-off is the recommended default.
+   14 days is a floor, not a ceiling: a longer window (30/60/90 days) is strictly safer,
+   at the cost of slower access to legitimate updates.
    Native release-age gating exists for **npm/pnpm, uv, pip 26.1+, poetry 2.4+, and
    pdm**. For **Cargo and Go modules**, the equivalent control is “do not re-resolve
    without a human review”: always pass `--locked` (Cargo) and keep `go.sum` /
