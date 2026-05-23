@@ -1,5 +1,11 @@
 # Supply Chain Security
 
+> A small, portable set of install-time rules to reduce supply-chain risk, from the
+> [Supply Chain Hardening](https://github.com/jlevy/supply-chain-hardening) project.
+> Drop this file into any repo so agents and developers see the rules before adding
+> dependencies; follow the link for the full playbooks and the reasoning behind each
+> rule.
+
 **For AI agents and developers working in this codebase.**
 
 > [!WARNING]
