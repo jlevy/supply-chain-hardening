@@ -66,9 +66,9 @@ Across the named incidents in this document, the playbook collapses to four prim
    installs the higher-versioned public package over the intended private one.
 
 **Common lifetime:** malicious versions live for minutes to hours before researchers
-detect them and the package is yanked or quarantined by PyPI. A 7-day rolling quarantine
-is effective: by the time a quarantined version becomes old enough to install, every
-named incident below has already been remediated.
+detect them and the package is yanked or quarantined by PyPI. A 14-day rolling
+quarantine is effective: by the time a quarantined version becomes old enough to
+install, every named incident below has already been remediated.
 
 ## Why Standard Practices Are Not Enough
 
@@ -375,16 +375,16 @@ Apply all three.
 
 Refuses to install any version published after a rolling cutoff.
 
-- **uv:** `UV_EXCLUDE_NEWER="7 days"`. Accepts friendly durations natively.
+- **uv:** `UV_EXCLUDE_NEWER="14 days"`. Accepts friendly durations natively.
   No date arithmetic needed.
   The environment variable works for `uv pip install`, `uv sync`, `uv lock`, and
   `uv add`.
-- **pip (>=26.1):** `PIP_UPLOADED_PRIOR_TO="P7D"`. ISO 8601 duration.
+- **pip (>=26.1):** `PIP_UPLOADED_PRIOR_TO="P14D"`. ISO 8601 duration.
   Introduced in pip 26.0 with absolute timestamps; relative-duration support added in
   pip 26.1 (April 2026).
 - **pip (<26.1):** no native rolling quarantine.
   Compute an absolute timestamp in shell init:
-  `export PIP_UPLOADED_PRIOR_TO="$(date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"`.
+  `export PIP_UPLOADED_PRIOR_TO="$(date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"`.
 - **pdm:** `pdm lock --exclude-newer <date>` and `pdm install --exclude-newer <date>`.
   Accepts ISO 8601 timestamps and relative durations in `N{d|h|w}` format (e.g. `7d`,
   `3w`). Configurable in `pyproject.toml` under `[tool.pdm.resolution]`.
@@ -454,7 +454,7 @@ defeating registry tampering and man-in-the-middle attacks.
 
 | Control | pip >=26.1 | uv | pipx | poetry | pdm | conda/mamba |
 | --- | :---: | :---: | :---: | :---: | :---: | :---: |
-| Date-pinned quarantine | `--uploaded-prior-to` (rolling P7D) | `--exclude-newer` (rolling “7 days”) | inherits from backend | `solver.min-release-age` (days, >=2.4.0) | `--exclude-newer` (date or relative) | no |
+| Date-pinned quarantine | `--uploaded-prior-to` (rolling P14D) | `--exclude-newer` (rolling “14 days”) | inherits from backend | `solver.min-release-age` (days, >=2.4.0) | `--exclude-newer` (date or relative) | no |
 | Refuse sdist builds | `--only-binary :all:` | `--only-binary :all:` or `no-build = true` | inherits from backend | no native flag | no native flag | N/A (pre-built only) |
 | Frozen lockfile with hashes | `--require-hashes` | `uv sync --frozen` (hashes in `uv.lock`) | no lockfile | `poetry install --no-update` (hashes in `poetry.lock`) | `pdm install --frozen-lockfile` (hashes in `pdm.lock`) | `conda-lock` |
 | Hash pinning in lockfile | via `pip-compile --generate-hashes` | automatic in `uv.lock` | N/A | automatic in `poetry.lock` | automatic in `pdm.lock` | via `conda-lock` |
@@ -485,11 +485,11 @@ The same file works on macOS, Linux, and WSL.
 ```sh
 # ~/.pypi-hardening.sh -- POSIX sh; works in bash, zsh, dash, sh
 
-# Rolling 7-day quarantine for uv. Friendly duration; no date arithmetic.
-export UV_EXCLUDE_NEWER="7 days"
+# Rolling 14-day quarantine for uv. Friendly duration; no date arithmetic.
+export UV_EXCLUDE_NEWER="14 days"
 
-# Rolling 7-day quarantine for pip >=26.1. ISO 8601 duration.
-export PIP_UPLOADED_PRIOR_TO="P7D"
+# Rolling 14-day quarantine for pip >=26.1. ISO 8601 duration.
+export PIP_UPLOADED_PRIOR_TO="P14D"
 
 # Refuse source distributions. Blocks setup.py code execution at install time.
 # UV_NO_BUILD is the uv equivalent of --no-build. uv does not expose an env var
@@ -535,8 +535,8 @@ Cover both by adding the sourcer to both `~/.bash_profile` (or `~/.profile`) and
 
 ```fish
 # Append to ~/.config/fish/conf.d/pypi-hardening.fish
-set -gx UV_EXCLUDE_NEWER "7 days"
-set -gx PIP_UPLOADED_PRIOR_TO "P7D"
+set -gx UV_EXCLUDE_NEWER "14 days"
+set -gx PIP_UPLOADED_PRIOR_TO "P14D"
 set -gx PIP_ONLY_BINARY ":all:"
 set -gx UV_NO_BUILD true
 ```
@@ -547,8 +547,8 @@ Files under `~/.config/fish/conf.d/` are auto-sourced.
 ### Verification (Any Shell On macOS)
 
 ```sh
-echo "$UV_EXCLUDE_NEWER"       # 7 days
-echo "$PIP_UPLOADED_PRIOR_TO"  # P7D
+echo "$UV_EXCLUDE_NEWER"       # 14 days
+echo "$PIP_UPLOADED_PRIOR_TO"  # P14D
 echo "$PIP_ONLY_BINARY"        # :all:
 echo "$UV_NO_BUILD"            # true
 ```
@@ -592,8 +592,8 @@ units, is `environment.d`:
 
 ```ini
 # ~/.config/environment.d/pypi-hardening.conf
-UV_EXCLUDE_NEWER=7 days
-PIP_UPLOADED_PRIOR_TO=P7D
+UV_EXCLUDE_NEWER=14 days
+PIP_UPLOADED_PRIOR_TO=P14D
 PIP_ONLY_BINARY=:all:
 UV_NO_BUILD=true
 ```
@@ -608,8 +608,8 @@ Create the file if it does not exist.
 
 ```powershell
 # Append to $PROFILE
-$env:UV_EXCLUDE_NEWER = "7 days"
-$env:PIP_UPLOADED_PRIOR_TO = "P7D"
+$env:UV_EXCLUDE_NEWER = "14 days"
+$env:PIP_UPLOADED_PRIOR_TO = "P14D"
 $env:PIP_ONLY_BINARY = ":all:"
 $env:UV_NO_BUILD = "true"
 ```
@@ -626,8 +626,8 @@ Setting the variables in the user’s registry hive makes them visible to cmd, P
 and any GUI-launched process the user starts:
 
 ```powershell
-[Environment]::SetEnvironmentVariable("UV_EXCLUDE_NEWER", "7 days", "User")
-[Environment]::SetEnvironmentVariable("PIP_UPLOADED_PRIOR_TO", "P7D", "User")
+[Environment]::SetEnvironmentVariable("UV_EXCLUDE_NEWER", "14 days", "User")
+[Environment]::SetEnvironmentVariable("PIP_UPLOADED_PRIOR_TO", "P14D", "User")
 [Environment]::SetEnvironmentVariable("PIP_ONLY_BINARY", ":all:", "User")
 [Environment]::SetEnvironmentVariable("UV_NO_BUILD", "true", "User")
 ```
@@ -640,8 +640,8 @@ no init file equivalent to `.bashrc`. The `setx` command writes the same registr
 entries:
 
 ```cmd
-setx UV_EXCLUDE_NEWER "7 days"
-setx PIP_UPLOADED_PRIOR_TO "P7D"
+setx UV_EXCLUDE_NEWER "14 days"
+setx PIP_UPLOADED_PRIOR_TO "P14D"
 setx PIP_ONLY_BINARY ":all:"
 setx UV_NO_BUILD "true"
 ```
@@ -675,10 +675,10 @@ Inject the variables into the runner’s environment explicitly.
 
 ```yaml
 env:
-  UV_EXCLUDE_NEWER: "7 days"
+  UV_EXCLUDE_NEWER: "14 days"
   UV_NO_BUILD: "true"
   PIP_ONLY_BINARY: ":all:"
-  PIP_UPLOADED_PRIOR_TO: "P7D"
+  PIP_UPLOADED_PRIOR_TO: "P14D"
 
 jobs:
   install:
@@ -693,10 +693,10 @@ jobs:
 
 ```yaml
 variables:
-  UV_EXCLUDE_NEWER: "7 days"
+  UV_EXCLUDE_NEWER: "14 days"
   UV_NO_BUILD: "true"
   PIP_ONLY_BINARY: ":all:"
-  PIP_UPLOADED_PRIOR_TO: "P7D"
+  PIP_UPLOADED_PRIOR_TO: "P14D"
 ```
 
 ### CircleCI, Buildkite, Jenkins
@@ -896,12 +896,12 @@ done
 
 **Does the date quarantine block legitimate security patches that landed in the last 7
 days?** Yes, by design.
-The trade-off: 7 days of delayed security patches versus zero days of supply-chain
+The trade-off: 14 days of delayed security patches versus zero days of supply-chain
 malware exposure. Historically the latter has been the bigger source of incidents for
 typical projects. For genuinely urgent CVEs (a 0-day RCE), opt out per command.
 
 **How does this interact with Renovate or Dependabot?** Renovate supports
-`minimumReleaseAge: "7 days"` in `renovate.json`, which applies to all ecosystems
+`minimumReleaseAge: "14 days"` in `renovate.json`, which applies to all ecosystems
 including PyPI. Dependabot does not yet support release-age gating for PyPI (as of
 2026-05). Both tools’ filters are independent of the package manager’s; both should be
 on.

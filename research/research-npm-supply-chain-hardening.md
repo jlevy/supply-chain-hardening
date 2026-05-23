@@ -71,7 +71,7 @@ primitives:
 
 **Common lifetime:** malicious versions live for minutes to a few hours before
 researchers detect them, the package is yanked or deprecated, and a clean version
-replaces it. A 7-day rolling quarantine is disproportionately effective: by the time a
+replaces it. A 14-day rolling quarantine is disproportionately effective: by the time a
 quarantined version becomes old enough to install, every named incident below has
 already been remediated by the upstream maintainer or by npm.
 
@@ -111,9 +111,8 @@ For example: `axios@1.14.0` not `1.14.1`, `debug@4.4.1` not `4.4.2`, `chalk@5.6.
 
 **Trend line:** through April 2026, attacks were roughly monthly.
 May 2026 saw four npm incidents in nine days (TanStack, node-ipc, Megalodon/Tiledesk,
-@antv).
-The 7-day quarantine pattern in Part 3 was designed around this cadence and still
-neutralises the fast-yanked install-time class.
+@antv). The 14-day quarantine pattern in Part 3 was designed around this cadence and
+still neutralises the fast-yanked install-time class.
 Two May incidents, however, point past the install side: node-ipc fired its payload at
 `require()` time rather than via an install script, and the @antv worm forged valid
 provenance and compromised the *publish* pipeline rather than a consumer.
@@ -324,7 +323,7 @@ Apply all four.
 ### Control 1: `NPM_CONFIG_BEFORE` (Date-Pinned Cutoff)
 
 Refuses to install any version published after the given ISO-8601 timestamp.
-Supported by both `npm` and `pnpm`. Compute dynamically as “now minus 7 days” so it
+Supported by both `npm` and `pnpm`. Compute dynamically as “now minus 14 days” so it
 slides forward with the calendar.
 
 - **Catches:** every recent attack.
@@ -336,7 +335,7 @@ slides forward with the calendar.
 ### Control 2: `NPM_CONFIG_MINIMUM_RELEASE_AGE` (Rolling Window)
 
 Native pnpm feature added in **pnpm 10.16.0**, released Q3 2025 in direct response to
-the qix incident. Value is in minutes; `10080` is 7 days.
+the qix incident. Value is in minutes; `20160` is 14 days.
 Unlike `before=`, this is a per-version property: a version published 6 days ago is
 rejected even after the system clock advances another day, until that *version* turns 7
 days old. pnpm checks each candidate version individually.
@@ -420,7 +419,8 @@ human action.
 **Strategic takeaway:**
 
 - **pnpm projects** get all four protections with security-by-default in v11
-  (`minimumReleaseAge` defaults to 1440 minutes); strongest posture.
+  (`minimumReleaseAge` defaults to 1440 minutes = 1 day; override to 20160 = 14 days per
+  this repo’s default policy); strongest posture.
 - **npm projects** get four controls as of 11.10 (`before`, `min-release-age`,
   `ignore-scripts`, `npm ci`), but no per-package script allowlist.
 - **yarn berry ≥4.10** gets rolling release-age (`npmMinimalAgeGate`), script blocking
@@ -443,15 +443,15 @@ The same file works on macOS, Linux, and WSL.
 ```sh
 # ~/.npm-hardening.sh — POSIX sh; works in bash, zsh, dash, sh
 
-# Rolling 7-day quarantine, recomputed at shell start.
+# Rolling 14-day quarantine, recomputed at shell start.
 # BSD date (macOS) primary; GNU date (Linux/WSL) fallback.
-NPM_HARDENING_BEFORE="$(date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
-  || date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
+NPM_HARDENING_BEFORE="$(date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+  || date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
 [ -n "$NPM_HARDENING_BEFORE" ] && export NPM_CONFIG_BEFORE="$NPM_HARDENING_BEFORE"
 unset NPM_HARDENING_BEFORE
 
-# pnpm-native rolling check; 10080 = 7 days in minutes. Requires pnpm >= 10.16.0.
-export NPM_CONFIG_MINIMUM_RELEASE_AGE=10080
+# pnpm-native rolling check; 20160 = 14 days in minutes. Requires pnpm >= 10.16.0.
+export NPM_CONFIG_MINIMUM_RELEASE_AGE=20160
 
 # Defeat install scripts. Primary exfil vector in worm-class attacks.
 export NPM_CONFIG_IGNORE_SCRIPTS=true
@@ -501,8 +501,8 @@ Cover both by adding the sourcer to both `~/.bash_profile` (or `~/.profile`) and
 ```fish
 # Append to ~/.config/fish/conf.d/npm-hardening.fish
 # BSD date (macOS) primary; GNU date (Linux) fallback.
-set -gx NPM_CONFIG_BEFORE (date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null; or date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)
-set -gx NPM_CONFIG_MINIMUM_RELEASE_AGE 10080
+set -gx NPM_CONFIG_BEFORE (date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null; or date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)
+set -gx NPM_CONFIG_MINIMUM_RELEASE_AGE 20160
 set -gx NPM_CONFIG_IGNORE_SCRIPTS true
 set -gx NPM_CONFIG_FROZEN_LOCKFILE true
 ```
@@ -514,11 +514,11 @@ Files under `~/.config/fish/conf.d/` are auto-sourced.
 ### Verification (Any Shell On macOS)
 
 ```sh
-pnpm config get before                # ISO date roughly 7 days ago
-pnpm config get minimum-release-age   # 10080
+pnpm config get before                # ISO date roughly 14 days ago
+pnpm config get minimum-release-age   # 20160
 pnpm config get ignore-scripts        # true
 pnpm config get frozen-lockfile       # true
-npm config get before                 # JS Date string roughly 7 days ago
+npm config get before                 # JS Date string roughly 14 days ago
 npm config get ignore-scripts         # true
 ```
 
@@ -564,7 +564,7 @@ units, is `environment.d`:
 
 ```ini
 # ~/.config/environment.d/npm-hardening.conf
-NPM_CONFIG_MINIMUM_RELEASE_AGE=10080
+NPM_CONFIG_MINIMUM_RELEASE_AGE=20160
 NPM_CONFIG_IGNORE_SCRIPTS=true
 NPM_CONFIG_FROZEN_LOCKFILE=true
 NPM_CONFIG_BEFORE=2026-05-05T00:00:00Z
@@ -580,7 +580,7 @@ A simple timer to refresh weekly:
 # ~/.config/systemd/user/npm-hardening-refresh.service
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'sed -i "s|^NPM_CONFIG_BEFORE=.*|NPM_CONFIG_BEFORE=$(date -u -d \"7 days ago\" \"+%%Y-%%m-%%dT%%H:%%M:%%SZ\")|" %h/.config/environment.d/npm-hardening.conf'
+ExecStart=/bin/sh -c 'sed -i "s|^NPM_CONFIG_BEFORE=.*|NPM_CONFIG_BEFORE=$(date -u -d \"14 days ago\" \"+%%Y-%%m-%%dT%%H:%%M:%%SZ\")|" %h/.config/environment.d/npm-hardening.conf'
 ```
 
 ```ini
@@ -604,8 +604,8 @@ Create the file if it does not exist.
 
 ```powershell
 # Append to $PROFILE
-$env:NPM_CONFIG_BEFORE = (Get-Date).ToUniversalTime().AddDays(-7).ToString("yyyy-MM-ddTHH:mm:ssZ")
-$env:NPM_CONFIG_MINIMUM_RELEASE_AGE = "10080"
+$env:NPM_CONFIG_BEFORE = (Get-Date).ToUniversalTime().AddDays(-14).ToString("yyyy-MM-ddTHH:mm:ssZ")
+$env:NPM_CONFIG_MINIMUM_RELEASE_AGE = "20160"
 $env:NPM_CONFIG_IGNORE_SCRIPTS = "true"
 $env:NPM_CONFIG_FROZEN_LOCKFILE = "true"
 ```
@@ -623,10 +623,10 @@ and any GUI-launched process the user starts:
 
 ```powershell
 [Environment]::SetEnvironmentVariable("NPM_CONFIG_IGNORE_SCRIPTS", "true", "User")
-[Environment]::SetEnvironmentVariable("NPM_CONFIG_MINIMUM_RELEASE_AGE", "10080", "User")
+[Environment]::SetEnvironmentVariable("NPM_CONFIG_MINIMUM_RELEASE_AGE", "20160", "User")
 [Environment]::SetEnvironmentVariable("NPM_CONFIG_FROZEN_LOCKFILE", "true", "User")
 [Environment]::SetEnvironmentVariable("NPM_CONFIG_BEFORE",
-  (Get-Date).ToUniversalTime().AddDays(-7).ToString("yyyy-MM-ddTHH:mm:ssZ"), "User")
+  (Get-Date).ToUniversalTime().AddDays(-14).ToString("yyyy-MM-ddTHH:mm:ssZ"), "User")
 ```
 
 To refresh `BEFORE=` daily, schedule a task: **Task Scheduler → Create Basic Task →
@@ -642,7 +642,7 @@ entries:
 
 ```cmd
 setx NPM_CONFIG_IGNORE_SCRIPTS true
-setx NPM_CONFIG_MINIMUM_RELEASE_AGE 10080
+setx NPM_CONFIG_MINIMUM_RELEASE_AGE 20160
 setx NPM_CONFIG_FROZEN_LOCKFILE true
 ```
 
@@ -677,14 +677,14 @@ Inject the variables into the runner’s environment explicitly.
 env:
   NPM_CONFIG_IGNORE_SCRIPTS: "true"
   NPM_CONFIG_FROZEN_LOCKFILE: "true"
-  NPM_CONFIG_MINIMUM_RELEASE_AGE: "10080"
+  NPM_CONFIG_MINIMUM_RELEASE_AGE: "20160"
 
 jobs:
   install:
     runs-on: ubuntu-latest
     steps:
       - name: Compute rolling quarantine
-        run: echo "NPM_CONFIG_BEFORE=$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+        run: echo "NPM_CONFIG_BEFORE=$(date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - run: pnpm install
 ```
@@ -695,9 +695,9 @@ jobs:
 variables:
   NPM_CONFIG_IGNORE_SCRIPTS: "true"
   NPM_CONFIG_FROZEN_LOCKFILE: "true"
-  NPM_CONFIG_MINIMUM_RELEASE_AGE: "10080"
+  NPM_CONFIG_MINIMUM_RELEASE_AGE: "20160"
 before_script:
-  - export NPM_CONFIG_BEFORE=$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')
+  - export NPM_CONFIG_BEFORE=$(date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ')
 ```
 
 ### CircleCI, Buildkite, Jenkins
@@ -944,14 +944,21 @@ done
 
 ## Common Questions
 
-**Does `before=` block legitimate security patches that landed in the last 7 days?**
-Yes, by design. The trade-off: 7 days of delayed security patches versus zero days of
-supply-chain malware exposure.
-Historically the latter has been the bigger source of incidents for typical projects.
-For genuinely urgent CVEs (a 0-day RCE), opt out per command.
+**Why 14 days, and does it block legitimate security patches that landed in that
+window?** Yes, by design.
+14 days is the repo-wide default (see
+[README, The Default Policy](../README.md#the-default-policy-a-14-day-cool-off)): most
+malicious publishes are detected within 3-7 days, but the slowest-detected ones run
+longer (the `ctx` PyPI takeover was live ~10 days), so 14 days covers the realistic tail
+at near-zero cost on routine upgrades.
+The trade-off is 14 days of delayed security patches versus the supply-chain-malware
+exposure window. For a genuinely urgent CVE, take the documented
+[exception](../README.md#the-exception-process): opt out per command, pin the exact
+version, and log it.
+`npm-check-updates --cooldown 14` enforces the same window at upgrade-decision time.
 
 **How does this interact with Renovate or Dependabot?** Both have native equivalents.
-Renovate supports `minimumReleaseAge: "7 days"` in `renovate.json`. Dependabot does not
+Renovate supports `minimumReleaseAge: "14 days"` in `renovate.json`. Dependabot does not
 yet (as of 2026-05); track this.
 Renovate’s filter is independent of pnpm’s; both should be on.
 

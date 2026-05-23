@@ -99,6 +99,15 @@ Do not add detail that belongs in the research doc.
 The hardening doc is intentionally brief; new background or threat-context goes into the
 research doc.
 
+**Keep the cool-off default consistent.** The repo-wide default is **14 days**
+(`README.md` → “The Default Policy: A 14-Day Cool-Off”). If that number ever changes,
+update it everywhere in lockstep: `NPM_CONFIG_MINIMUM_RELEASE_AGE` / `MIN_RELEASE_AGE`
+(20160 minutes / 14 days), `UV_EXCLUDE_NEWER` ("14 days"), `PIP_UPLOADED_PRIOR_TO`
+("P14D"), the `date -v-14d` / `-d '14 days ago'` shell snippets, the
+`npm-check-updates --cooldown 14` examples, `SUPPLY-CHAIN-SECURITY.md`,
+`guidelines/strict-mode.md`, and the per-ecosystem playbooks.
+Grep for `14` and `20160` before claiming the change is complete.
+
 ## Updating Research Docs (`research-*-supply-chain-hardening.md`)
 
 Update when:

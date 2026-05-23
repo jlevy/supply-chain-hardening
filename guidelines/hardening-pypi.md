@@ -21,16 +21,16 @@ tokens and follow [`hardening-ci-cd.md`](hardening-ci-cd.md).
 Create `~/.pypi-hardening.sh` with the three protection env vars:
 
 ```sh
-# Rolling 7-day install quarantine for uv.
+# Rolling 14-day install quarantine for uv.
 # Accepts friendly durations natively; no date arithmetic needed.
-export UV_EXCLUDE_NEWER="7 days"
+export UV_EXCLUDE_NEWER="14 days"
 
 # Refuse source distributions (sdists). Blocks setup.py code execution at install time.
 export PIP_ONLY_BINARY=":all:"
 export UV_NO_BUILD=true
 
-# pip 26.1+ rolling quarantine. P7D = 7 days in ISO 8601 duration format.
-export PIP_UPLOADED_PRIOR_TO="P7D"
+# pip 26.1+ rolling quarantine. P14D = 14 days in ISO 8601 duration format.
+export PIP_UPLOADED_PRIOR_TO="P14D"
 ```
 
 ### Step 2: Source From Shell Init
@@ -46,10 +46,10 @@ Detail on each in
   `~/.bash_profile` or `~/.profile`.
 - **fish**: add to `~/.config/fish/conf.d/pypi-hardening.fish`:
   ```fish
-  set -gx UV_EXCLUDE_NEWER "7 days"
+  set -gx UV_EXCLUDE_NEWER "14 days"
   set -gx PIP_ONLY_BINARY ":all:"
   set -gx UV_NO_BUILD true
-  set -gx PIP_UPLOADED_PRIOR_TO "P7D"
+  set -gx PIP_UPLOADED_PRIOR_TO "P14D"
   ```
 - **Windows PowerShell**: add to `$PROFILE` (see
   [research-pypi-supply-chain-hardening.md](../research/research-pypi-supply-chain-hardening.md#powershell-7-pwsh)).
@@ -86,13 +86,13 @@ PIP_UPLOADED_PRIOR_TO= PIP_ONLY_BINARY= pip install some-pkg
 
 ### Notes And Caveats
 
-- `UV_EXCLUDE_NEWER="7 days"` and `PIP_UPLOADED_PRIOR_TO="P7D"` are **not**
+- `UV_EXCLUDE_NEWER="14 days"` and `PIP_UPLOADED_PRIOR_TO="P14D"` are **not**
   syntactically interchangeable.
-  uv accepts friendly durations natively; pip 26.1+ accepts ISO 8601 durations (`P7D` =
-  7 days). Setting `PIP_UPLOADED_PRIOR_TO=7 days` will silently fail to parse.
+  uv accepts friendly durations natively; pip 26.1+ accepts ISO 8601 durations (`P14D` =
+  14 days). Setting `PIP_UPLOADED_PRIOR_TO=14 days` will silently fail to parse.
 - `PIP_UPLOADED_PRIOR_TO` depends on the index serving upload-timestamp metadata.
   Public PyPI does; some private indexes (Artifactory, Nexus) may not.
-  Verify with `pip install --dry-run --uploaded-prior-to P7D <pkg-from-private-index>`
+  Verify with `pip install --dry-run --uploaded-prior-to P14D <pkg-from-private-index>`
   before trusting the control on a private index.
 - For private packages, do **not** use `--extra-index-url` (or `PIP_EXTRA_INDEX_URL`).
   pip resolves across all indexes and the highest version wins, which is the
@@ -203,10 +203,10 @@ Inject the variables explicitly.
 
 ```yaml
 env:
-  UV_EXCLUDE_NEWER: "7 days"
+  UV_EXCLUDE_NEWER: "14 days"
   UV_NO_BUILD: "true"
   PIP_ONLY_BINARY: ":all:"
-  PIP_UPLOADED_PRIOR_TO: "P7D"
+  PIP_UPLOADED_PRIOR_TO: "P14D"
   PIP_AUDIT_VERSION: "2.9.0"   # pin; verify against pypi.org/project/pip-audit/
 jobs:
   install:

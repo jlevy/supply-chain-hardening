@@ -23,15 +23,15 @@ provenance as proof.
 Create `~/.npm-hardening.sh` with the four protection env vars:
 
 ```sh
-# Rolling 7-day install quarantine, recomputed at shell start.
+# Rolling 14-day install quarantine, recomputed at shell start.
 # BSD date (macOS) primary; GNU date (Linux/WSL) fallback.
-NPM_HARDENING_BEFORE="$(date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
-  || date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
+NPM_HARDENING_BEFORE="$(date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+  || date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
 [ -n "$NPM_HARDENING_BEFORE" ] && export NPM_CONFIG_BEFORE="$NPM_HARDENING_BEFORE"
 unset NPM_HARDENING_BEFORE
 
-# pnpm-native rolling check; 10080 = 7 days in minutes. Requires pnpm >= 10.16.0.
-export NPM_CONFIG_MINIMUM_RELEASE_AGE=10080
+# pnpm-native rolling check; 20160 = 14 days in minutes. Requires pnpm >= 10.16.0.
+export NPM_CONFIG_MINIMUM_RELEASE_AGE=20160
 
 # Defeat install scripts. Primary exfil vector in worm-class attacks.
 export NPM_CONFIG_IGNORE_SCRIPTS=true
@@ -62,8 +62,8 @@ Detail on each in
   `~/.bash_profile` or `~/.profile`.
 - **fish**: add to `~/.config/fish/conf.d/npm-hardening.fish`:
   ```fish
-  set -gx NPM_CONFIG_BEFORE (date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null; or date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)
-  set -gx NPM_CONFIG_MINIMUM_RELEASE_AGE 10080
+  set -gx NPM_CONFIG_BEFORE (date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null; or date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)
+  set -gx NPM_CONFIG_MINIMUM_RELEASE_AGE 20160
   set -gx NPM_CONFIG_IGNORE_SCRIPTS true
   set -gx NPM_CONFIG_FROZEN_LOCKFILE true
   ```
@@ -80,11 +80,11 @@ Detail on each in
 env | grep -E '^NPM_CONFIG_(BEFORE|MIN_RELEASE_AGE|MINIMUM_RELEASE_AGE|IGNORE_SCRIPTS|FROZEN_LOCKFILE|STRICT_DEP_BUILDS)='
 
 # Tool view: npm and pnpm report what they actually honor (cross-check with shell).
-pnpm config get before                # ISO date ~7 days ago
-pnpm config get minimum-release-age   # 10080
+pnpm config get before                # ISO date ~14 days ago
+pnpm config get minimum-release-age   # 20160
 pnpm config get ignore-scripts        # true
 pnpm config get frozen-lockfile       # true
-npm config get before                 # date ~7 days ago
+npm config get before                 # date ~14 days ago
 npm config get ignore-scripts         # true
 ```
 
@@ -133,6 +133,50 @@ version:
 ```sh
 NPM_CONFIG_BEFORE= NPM_CONFIG_MIN_RELEASE_AGE=0 NPM_CONFIG_MINIMUM_RELEASE_AGE=0 \
   NPM_CONFIG_FROZEN_LOCKFILE=false pnpm add some-pkg
+```
+
+This is the documented [exception process](../README.md#the-exception-process): take it
+only with a stated reason (a CVE ID for security patches), pin the exact version, and
+log it. The env vars above enforce the 14-day default; everything below helps you hold
+the line at upgrade time.
+
+### Step 5: Enforce The 14-Day Cool-Off At Upgrade Time
+
+`NPM_CONFIG_MINIMUM_RELEASE_AGE` gates resolution; `npm-check-updates --cooldown` gates
+the upgrade decision itself.
+Use it (works on npm/pnpm/yarn projects):
+
+```sh
+# Refuse any candidate version younger than 14 days
+pnpm dlx npm-check-updates@<pinned-version> --cooldown 14
+
+# CI-style: exit non-zero if any fresh-enough upgrade is available
+pnpm dlx npm-check-updates@<pinned-version> --cooldown 14 --errorLevel 2
+```
+
+For a specific version, query the publish time directly and wait if it is too new:
+
+```sh
+npm view <pkg> time            # all publish times
+npm view <pkg> time.<version>  # one version; if < 14 days ago, wait
+```
+
+Optional pre-push guard that fails if any direct dependency is younger than 14 days:
+
+```sh
+#!/usr/bin/env bash
+# scripts/check-package-age.sh — wire into a pre-push hook (lefthook/husky).
+COOLDOWN_DAYS=14
+now=$(date -u +%s)
+fail=0
+node -e 'const p=require("./package.json");for(const[n,v]of Object.entries({...p.dependencies,...p.devDependencies}))console.log(n,String(v).replace(/^[^0-9]*/,""))' \
+| while read -r name version; do
+    published=$(npm view "$name@$version" time."$version" 2>/dev/null) || continue
+    [ -z "$published" ] && continue
+    age=$(( (now - $(date -u -d "$published" +%s 2>/dev/null || date -u -jf '%Y-%m-%dT%H:%M:%S' "${published%.*}" +%s)) / 86400 ))
+    if [ "$age" -lt "$COOLDOWN_DAYS" ]; then echo "✗ $name@$version is only ${age}d old (< $COOLDOWN_DAYS)"; fail=1; fi
+  done
+exit $fail
 ```
 
 ## Compromise Assessment
@@ -338,14 +382,14 @@ Inject the variables explicitly.
 env:
   NPM_CONFIG_IGNORE_SCRIPTS: "true"
   NPM_CONFIG_FROZEN_LOCKFILE: "true"
-  NPM_CONFIG_MINIMUM_RELEASE_AGE: "10080"
+  NPM_CONFIG_MINIMUM_RELEASE_AGE: "20160"
   OSV_SCANNER_VERSION: "v2.0.2"
 jobs:
   install:
     runs-on: ubuntu-latest
     steps:
       - name: Compute rolling quarantine
-        run: echo "NPM_CONFIG_BEFORE=$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+        run: echo "NPM_CONFIG_BEFORE=$(date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - run: pnpm install   # honors frozen-lockfile via env var; npm equivalent: `npm ci`
       - name: Install pinned osv-scanner

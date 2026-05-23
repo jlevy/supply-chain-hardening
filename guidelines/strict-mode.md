@@ -1,6 +1,6 @@
 # Strict, Balanced, And Emergency-Exception Modes
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-23
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -12,7 +12,7 @@ switch between them.
 
 | Control | Balanced (default) | Strict | Emergency Exception |
 | --- | --- | --- | --- |
-| Release-age cool-off | 7 days where the package manager supports it | 14 days; weekly review of bypass logs | per-command bypass with reason logged |
+| Release-age cool-off | 14 days where the package manager supports it | 14-day minimum; no upgrade without reviewing the dependency’s change set (do not update for its own sake); weekly review of bypass logs | per-command bypass with reason logged |
 | Install / lifecycle scripts | disabled (`NPM_CONFIG_IGNORE_SCRIPTS=true`) | disabled; allowlist required for any exception | disabled; exceptions require approval |
 | Source builds (PyPI sdists, `build.rs`, proc-macros) | refused (`UV_NO_BUILD=true`, `PIP_ONLY_BINARY=:all:`) | refused, with sandbox for unavoidable cases | sandbox + approver |
 | Lockfile | committed; `--frozen` / `--locked` / `npm ci` | committed; `cargo vet` or equivalent attestation required | unchanged |

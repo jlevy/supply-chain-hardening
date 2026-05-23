@@ -61,7 +61,7 @@ timeline, per-shell setup detail, and severity assessment per ecosystem.
 ### Drop A Reminder Into Your Own Codebase
 
 [`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md) is a self-contained, portable
-version of the install rules (no newer than 7 days, no unthinking installs, audit after
+version of the install rules (no newer than 14 days, no unthinking installs, audit after
 every install, link back here for detail).
 Copy it to your own project root and reference it from your project’s `AGENTS.md` so any
 AI agent working in your codebase sees the rules before installing anything.
@@ -195,6 +195,87 @@ Those require additional controls: lockfile review, typo-resistance checks, the
 per-ecosystem build-time controls in the playbooks, and the publish-side controls in the
 [CI/CD playbook](guidelines/hardening-ci-cd.md) (OIDC trusted publishing, staged
 publishing, runner hardening, provenance monitoring).
+
+## The Default Policy: A 14-Day Cool-Off
+
+**Never install or upgrade to a package version less than 14 days old, unless a
+documented exception applies.** This is the single default this repo recommends across
+every ecosystem, and it is what the per-ecosystem playbooks configure
+(`NPM_CONFIG_MINIMUM_RELEASE_AGE=20160`, `UV_EXCLUDE_NEWER="14 days"`,
+`PIP_UPLOADED_PRIOR_TO="P14D"`, and the lockfile-discipline equivalents for Cargo and
+Go).
+
+Why 14 days specifically:
+
+- **Detection window.** Most malicious publishes are reported and yanked within 3-7
+  days; 14 days is a generous buffer past that median.
+- **It covers the realistic tail, not just the fast cases.** Many incidents die in
+  minutes (Bitwarden ~93 min, @antv ~22 min), but the value of a cool-off is set by the
+  *slowest*-detected incidents.
+  The `ctx` PyPI takeover was malicious for ~10 days.
+  A 7-day window misses it; a 14-day window catches it.
+- **Patch bumps are where malware hides.** Many compromises arrive as a `1.2.3 -> 1.2.4`
+  patch. A trailing-age window neutralises the whole “fresh patch is malicious” class
+  regardless of which dependency moved.
+- **The cost is asymmetric.** Waiting 14 days on a routine upgrade is essentially free;
+  the only real cost is an urgent security patch, which the exception process handles.
+
+Scope: applies to `dependencies`, `devDependencies` (historically *more* dangerous,
+since build tooling runs with full developer privileges), `peerDependencies`, and
+`optionalDependencies`; to new installs and upgrades; and to transitive dependencies to
+the extent the package manager enforces it.
+Pins resolved before adopting the policy are grandfathered until their next planned
+upgrade.
+
+### The Exception Process
+
+When a version inside the 14-day window is genuinely needed (for example a CVE patch
+published yesterday that fixes a vulnerability you are exposed to), take the exception
+*explicitly and on the record*:
+
+- State the reason in the commit message or PR description: the CVE ID (or vulnerability
+  description if none yet), a link to the upstream release notes, and a `Reviewed-by:`
+  sign-off line.
+- Pin the exact `package@version`, not a range.
+  Verify it against the [authoritative sources](#authoritative-sources).
+- Log it in `supply-chain-audit-log.md` with a follow-up to confirm the version was not
+  yanked after the fact.
+
+No exception is “trivial” (even a `prettier` patch is in scope): the point of the rule
+is that we do not trust ourselves to eyeball which fresh versions are safe.
+**Agents never self-approve an exception**; they prepare the record above and a human
+signs off. See [`guidelines/strict-mode.md`](guidelines/strict-mode.md) for the full
+Emergency-Exception record format.
+
+### Update Discipline: The Safest Update Is The One You Skip
+
+A cool-off decides *when* to take an update.
+The prior question is *whether* to update at all.
+Each update is fresh attack surface, and updating has repeatedly proven riskier than the
+latent bugs it fixes.
+Mitchell Hashimoto (HashiCorp, Ghostty) puts the strong form of this well:
+
+> Fork your dependencies, trim them to only your use case, never update unless it breaks
+> for your users. [...] updating is way riskier than latent bugs (which can be tracked
+> and CVEs monitored).
+> If you are updating a dependency, it’s on you to analyze every single commit in the
+> full transitive set of dependencies.
+> If you don’t see anything compelling, don’t update!
+> [...] Don’t update for the sake of it.
+
+This is one influential school, and the absolutist version trades supply-chain risk for
+the risk of *not* applying a needed security fix.
+The balance this repo recommends:
+
+- **Default to not updating.** Don’t bump a dependency without a concrete reason ("show
+  me the commit we need"). Minimise the dependency count, and prefer vendoring or
+  pinning for small, stable libraries.
+- **Monitor CVEs so the exception is data-driven.** The post-install audit commands
+  (`npm audit`, `pip-audit`, `cargo audit`, `govulncheck`) and the IOC feeds are how you
+  learn a real security update is needed, which is exactly when the 14-day exception
+  applies.
+- **When you do update, review the change set,** not just the version number, and then
+  still wait out the 14-day window unless it is a security exception.
 
 ## Maintaining This Repo
 
