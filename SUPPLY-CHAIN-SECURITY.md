@@ -32,7 +32,7 @@
    document it: state the reason (CVE ID or vulnerability description) and a
    `Reviewed-by:` sign-off in the commit message or PR, pin the exact `package@version`
    (not a range), and verify it against the
-   [authoritative sources](https://github.com/jlevy/supply-chain-hardening-guidebook#authoritative-sources).
+   [authoritative sources](https://github.com/jlevy/supply-chain-hardening#authoritative-sources).
    No exception is “trivial”; agents prepare the record and a human approves.
 4. **After any install,** run the ecosystem’s audit command (`npm audit`, `pnpm audit`,
    `pip-audit`, `cargo audit`, `govulncheck`) and address findings before continuing.
@@ -72,7 +72,7 @@ controls in `guidelines/hardening-ci-cd.md`.
 ## More Detail
 
 Per-ecosystem hardening playbooks, the audit script, and the watch list of recent
-compromises: <https://github.com/jlevy/supply-chain-hardening-guidebook>.
+compromises: <https://github.com/jlevy/supply-chain-hardening>.
 
 <!-- This document follows std-doc-guidelines.md.
 Review guidelines before editing.
