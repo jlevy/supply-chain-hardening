@@ -14,7 +14,7 @@ switch between them.
 | --- | --- | --- | --- |
 | Release-age cool-off | 14 days where the package manager supports it | 14-day minimum; no upgrade without reviewing the dependency’s change set (do not update for its own sake); weekly review of bypass logs | per-command bypass with reason logged |
 | Install / lifecycle scripts | disabled (`NPM_CONFIG_IGNORE_SCRIPTS=true`) | disabled; allowlist required for any exception | disabled; exceptions require approval |
-| Source builds (PyPI sdists, `build.rs`, proc-macros) | refused (`UV_NO_BUILD=true`, `PIP_ONLY_BINARY=:all:`) | refused, with sandbox for unavoidable cases | sandbox + approver |
+| Source builds (PyPI sdists, `build.rs`, proc-macros) | refused (`PIP_ONLY_BINARY=:all:` globally; uv `--no-build` per command / `UV_NO_BUILD_PACKAGE`, not a blanket `UV_NO_BUILD` export) | refused, with sandbox for unavoidable cases | sandbox + approver |
 | Lockfile | committed; `--frozen` / `--locked` / `npm ci` | committed; `cargo vet` or equivalent attestation required | unchanged |
 | Untrusted-repo first run | recommended sandbox | mandatory sandbox (see [untrusted-repo-first-run.md](untrusted-repo-first-run.md)) | mandatory sandbox |
 | Network-from-build | allowed during install / build | egress allowlist only | egress allowlist + approver |
@@ -41,10 +41,12 @@ Apply the per-ecosystem additions on top of the Balanced shell-init:
   `MINIMUM_RELEASE_AGE=20160`). Ban `npx` and `pnpm dlx` in agent rules.
   Require `pnpm-workspace.yaml` build-script allowlist (`onlyBuiltDependencies` /
   `strictDepBuilds` per current pnpm).
-- PyPI / uv / pip: set `UV_EXCLUDE_NEWER="14 days"`, `PIP_UPLOADED_PRIOR_TO="P14D"`.
-  Keep `UV_NO_BUILD=true` and `PIP_ONLY_BINARY=:all:`. Require hash-pinned requirements
-  for pip (`--require-hashes`). Refuse `--extra-index-url`; use isolated indexes for
-  private packages.
+- PyPI / uv / pip: set `UV_EXCLUDE_NEWER="14 days"` (needs uv >= 0.9; absolute date on
+  older uv), `PIP_UPLOADED_PRIOR_TO="P14D"`, and `PIP_ONLY_BINARY=:all:`. Do **not**
+  export a blanket `UV_NO_BUILD=true` (it breaks `uv sync` of your own package); apply
+  uv’s no-build guard per command (`uv pip install --no-build`) or via
+  `UV_NO_BUILD_PACKAGE`. Require hash-pinned requirements for pip (`--require-hashes`).
+  Refuse `--extra-index-url`; use isolated indexes for private packages.
 - Cargo: keep `--locked` everywhere; require `cargo vet` certifications for every new
   crate; ban `cargo run` for code paths not under review.
   Run all builds and tests in the [untrusted-repo sandbox](untrusted-repo-first-run.md)
