@@ -77,15 +77,52 @@ the macOS launchd / Windows User-wide instructions).
 
 ### Step 4: When You Intentionally Need A Fresh Package
 
-Unset **only the age gate** per command, visibly, and keep the sdist/no-build protection
-in place.
-A fresh-version exception (e.g. an urgent CVE patch) does not need source-build
-execution, so do not turn it into one:
+As with npm, the age gate (`UV_EXCLUDE_NEWER` / `PIP_UPLOADED_PRIOR_TO`) applies at
+resolution time, so prefer a surgical, hash-pinned install over relaxing the gate.
+A fresh-version exception (e.g. an urgent CVE patch) needs only a wheel; it does **not**
+need source-build execution, so keep the sdist / no-build protection in place
+throughout.
+
+#### Verify First
+
+PyPI has no `npm view` equivalent; query the JSON API for the exact version’s upload
+time and per-file digests:
+
+```sh
+curl -s https://pypi.org/pypi/<pkg>/<version>/json \
+  | jq -r '.urls[] | "\(.filename)\t\(.upload_time_iso_8601)\t\(.digests.sha256)\t\(.url)"'
+```
+
+No `jq`? The same fields are plain JSON: `urls[].filename`,
+`urls[].upload_time_iso_8601`, `urls[].digests.sha256`, `urls[].url`. Confirm the upload
+time matches the release you intend, then keep the wheel’s `sha256` and `url` for the
+next step.
+
+#### Surgical Install (Preferred)
+
+Install the specific wheel by URL with its hash.
+pip verifies the `#sha256` fragment against the downloaded file and never re-resolves
+the version through the gate:
+
+```sh
+# pip verifies the fragment hash:
+pip install "https://files.pythonhosted.org/.../<pkg>-<version>-py3-none-any.whl#sha256=<sha256>"
+# uv:
+uv pip install "https://files.pythonhosted.org/.../<pkg>-<version>-py3-none-any.whl"
+```
+
+This bypasses the age gate for one vetted wheel only, keeps sdist / no-build enforcement
+intact, and cannot linger in your shell.
+
+#### Relax The Gate (Last Resort)
+
+Only when you cannot construct a wheel URL. Unset **only the age gate** inline, keeping
+sdist / no-build enforcement:
 
 ```sh
 # Fresh wheel only: bypass the age gate, keep no-build / wheel-only enforcement.
-UV_EXCLUDE_NEWER= uv pip install some-pkg
-PIP_UPLOADED_PRIOR_TO= pip install some-pkg
+UV_EXCLUDE_NEWER= uv pip install <pkg>==<version>
+PIP_UPLOADED_PRIOR_TO= pip install <pkg>==<version>
 ```
 
 Only if a package genuinely has no wheel and must be built from source, take the
@@ -97,6 +134,16 @@ sandbox):
 UV_NO_BUILD= uv pip install some-sdist-only-pkg
 PIP_ONLY_BINARY= pip install some-sdist-only-pkg
 ```
+
+#### Verify-Then-Install Checklist
+
+Every exception ends in the [exception process](../README.md#the-exception-process):
+
+1. **Verify** — query the JSON API; confirm the upload time and record the wheel
+   `sha256`.
+2. **Install surgically** — wheel URL with `#sha256=`; keep sdist / no-build on.
+3. **Record** — log the exception in `supply-chain-audit-log.md` with the reason (a CVE
+   ID for security patches), the exact `pkg==version`, and the verified `sha256`.
 
 ### Notes And Caveats
 

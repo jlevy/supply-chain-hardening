@@ -48,6 +48,15 @@ cross-ecosystem [CI/CD playbook](guidelines/hardening-ci-cd.md): most 2026 incid
 (TanStack, @antv, Megalodon, `durabletask`) compromised the publish pipeline, not a
 consumer.
 
+**Ecosystems not yet covered:** RubyGems / Bundler and Homebrew have no copy-pasteable
+playbook here yet. The same methodology applies — commit `Gemfile.lock` and install with
+`bundle install --frozen`; use a committed `Brewfile` with `brew bundle`, and disable
+Homebrew auto-update (`HOMEBREW_NO_AUTO_UPDATE=1`) for reproducible installs; verify
+before upgrading — but neither has a native release-age gate, so treat them like Cargo
+and Go (pin, commit the lockfile, review before updating).
+Adding a full playbook follows
+[self-update-instructions.md](self-update-instructions.md) → “Adding A New Ecosystem”.
+
 ### Harden All Ecosystems
 
 For an agent or human walking through every ecosystem on a workstation, in order:
@@ -281,7 +290,17 @@ published yesterday that fixes a vulnerability you are exposed to), take the exc
   description if none yet), a link to the upstream release notes, and a `Reviewed-by:`
   sign-off line.
 - Pin the exact `package@version`, not a range.
-  Verify it against the [authoritative sources](#authoritative-sources).
+  Verify it against the [authoritative sources](#authoritative-sources): publisher,
+  publish time, and integrity hash.
+- Install it **surgically** — a direct tarball / wheel URL or a pinned git ref — rather
+  than relaxing the global cool-off for the whole dependency graph.
+  Each playbook’s “When You Intentionally Need A Fresh Package” step has the
+  verify-then-install commands
+  ([npm](guidelines/hardening-npm.md#step-4-when-you-intentionally-need-a-fresh-package),
+  [PyPI](guidelines/hardening-pypi.md#step-4-when-you-intentionally-need-a-fresh-package);
+  [crates](guidelines/hardening-crates.md#step-6-when-you-intentionally-need-an-unvetted-crate)
+  and [Go](guidelines/hardening-go.md#verify-a-specific-version-before-adding-it) verify
+  before pinning instead, since they have no cool-off to relax).
 - Log it in `supply-chain-audit-log.md` with a follow-up to confirm the version was not
   yanked after the fact.
 

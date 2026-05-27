@@ -168,18 +168,79 @@ For untrusted first-runs, see
 
 ### Step 4: When You Intentionally Need A Fresh Package
 
-Unset the quarantine env vars per command, visibly.
-Cover both naming variants because you may not remember which is honored by your tool
-version:
+The cool-off gate applies at **version resolution**, so the safest exception touches a
+single vetted package instead of relaxing the gate for the whole dependency graph.
+Prefer a surgical install (below); relax the gate only when no tarball or git ref is
+fetchable.
+
+#### Verify First
+
+Confirm the publisher, maintainers, publish time, and integrity hash for the *exact*
+version before installing.
+For a package you maintain, also confirm the published tarball matches the git tag you
+cut.
+
+```sh
+npm view <pkg>@<version> _npmUser maintainers time.<version> dist.integrity dist.shasum dist.tarball
+```
+
+Check that `_npmUser` / `maintainers` are who you expect, `time.<version>` matches the
+release you intend to take, and `dist.integrity` / `dist.shasum` match the upstream
+release notes (or your own build output).
+Copy the `dist.tarball` URL for the next step (it already has the correct path for
+scoped packages).
+
+#### Surgical Install (Preferred)
+
+Install the one package you vetted without touching the global gate.
+Resolution-time controls (`before` / `minimum-release-age`) still apply to that
+package’s dependencies, so the rest of the graph stays quarantined.
+
+```sh
+# Direct tarball URL (use the dist.tarball value from the verify step):
+npm install https://registry.npmjs.org/<pkg>/-/<pkg>-<version>.tgz
+pnpm add --no-frozen-lockfile https://registry.npmjs.org/<pkg>/-/<pkg>-<version>.tgz
+
+# Git ref (strongest for packages you maintain: auditable source, pinned tag):
+npm install git+https://github.com/<org>/<repo>#v<version>
+```
+
+Adding any package updates the lockfile; that mutation is expected and is separate from
+the age gate (pass `--no-frozen-lockfile` to pnpm if your config sets
+`frozen-lockfile`). The point is that neither command relaxes `before` /
+`minimum-release-age`, and neither can linger in an interactive shell the way an
+exported env var can.
+
+#### Relax The Gate (Last Resort)
+
+Only when the package has no fetchable tarball or git ref.
+Unset the age gate **inline for one command** — never `export` it — and cover both
+naming variants since you may not recall which your tool honors:
 
 ```sh
 NPM_CONFIG_BEFORE= NPM_CONFIG_MIN_RELEASE_AGE=0 NPM_CONFIG_MINIMUM_RELEASE_AGE=0 \
-  NPM_CONFIG_FROZEN_LOCKFILE=false pnpm add some-pkg
+  pnpm add --no-frozen-lockfile <pkg>@<exact-version>
 ```
 
-This is the documented [exception process](../README.md#the-exception-process): take it
-only with a stated reason (a CVE ID for security patches), pin the exact version, and
-log it. The env vars above enforce the 14-day default; everything below helps you hold
+This re-resolves the whole dependency graph without the cool-off, so pin the exact
+version and re-check the resolved tree (`pnpm why <pkg>`, lockfile diff) before
+committing.
+
+#### Verify-Then-Install Checklist
+
+Every exception, whichever install method you use, follows the same three steps and ends
+in the [exception process](../README.md#the-exception-process):
+
+1. **Verify** —
+   `npm view <pkg>@<version> _npmUser maintainers time.<version> dist.integrity dist.shasum`;
+   confirm publisher, publish time, and integrity (plus the git-tag match for packages
+   you maintain).
+2. **Install surgically** — tarball URL or git ref; do not touch the global age gate.
+3. **Record** — log the exception in `supply-chain-audit-log.md` with the reason (a CVE
+   ID for security patches), the exact `package@version` pin, and the verified integrity
+   hash. Agents prepare this record; a human signs off.
+
+The env vars in Step 1 enforce the 14-day default; everything in Step 5 helps you hold
 the line at upgrade time.
 
 ### Step 5: Enforce The 14-Day Cool-Off At Upgrade Time
