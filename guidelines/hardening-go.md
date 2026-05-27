@@ -111,6 +111,25 @@ go mod tidy -mod=mod
 GOFLAGS="" go get -u github.com/some/module@v1.2.3
 ```
 
+#### Verify A Specific Version Before Adding It
+
+Go’s integrity story is the checksum database, not a release-age gate, so the surgical
+exception is to pin one reviewed version and confirm it verifies.
+Before adding a new version, check that it is recorded in the public checksum DB and
+that the download verifies against `go.sum`:
+
+```sh
+go list -m -versions <module>                              # available versions
+curl -s "https://sum.golang.org/lookup/<module>@v<version>"  # checksum-DB record (h1: hash)
+go get -mod=mod <module>@v<version> && go mod verify         # pin, then re-check go.sum
+```
+
+For a module you maintain, pin the reviewed tag (`<module>@v<version>`); the proxy
+serves that tag’s commit and the checksum DB records its hash.
+Log the change in `supply-chain-audit-log.md` per the
+[exception process](../README.md#the-exception-process): the reason, the exact
+`module@version`, and the verified `go.sum` hash.
+
 ### Source-Policy Checks
 
 Two patterns in `go.mod` and the workspace warrant routine review:

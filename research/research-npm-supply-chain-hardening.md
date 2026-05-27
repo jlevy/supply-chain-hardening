@@ -931,10 +931,14 @@ done
 
 ### Per-Project (When Adding Or Removing Dependencies)
 
-- [ ] To intentionally install a fresh package, explicitly unset the quarantine
-  variables per command, visibly:
-  `NPM_CONFIG_BEFORE= NPM_CONFIG_MINIMUM_RELEASE_AGE=0 NPM_CONFIG_FROZEN_LOCKFILE=false pnpm add some-pkg`.
-  Or use `--before=<known-safe-date>`.
+- [ ] To intentionally install a fresh package, prefer a **surgical** install that does
+  not relax the global gate: verify first
+  (`npm view <pkg>@<version> _npmUser maintainers time.<version> dist.integrity dist.tarball`),
+  then install from the `dist.tarball` URL or a pinned git ref.
+  See [`../guidelines/hardening-npm.md`](../guidelines/hardening-npm.md) → “Step 4”.
+  Only when no tarball / git ref is fetchable, unset the quarantine variables inline for
+  one command (never `export` them):
+  `NPM_CONFIG_BEFORE= NPM_CONFIG_MINIMUM_RELEASE_AGE=0 pnpm add --no-frozen-lockfile <pkg>@<exact-version>`.
 - [ ] After lockfile change, run `osv-scanner scan -L <new lockfile>`.
 - [ ] Commit lockfile.
 

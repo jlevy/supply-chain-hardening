@@ -79,6 +79,30 @@ cargo vet                    # all dependencies vetted or exempted
 
 ### Step 6: When You Intentionally Need An Unvetted Crate
 
+crates.io has no release-age gate (see the README layered model), so the exception is
+about *review*, not bypassing a cool-off.
+Verify the crate before you certify or exempt it, and tie the decision to the audit log.
+
+#### Verify First
+
+Confirm the publisher, publish time, and the `.crate` checksum for the exact version:
+
+```sh
+cargo info <crate>@<version>     # owners, repository, version metadata (cargo 1.79+)
+curl -s https://crates.io/api/v1/crates/<crate>/<version> \
+  | jq '.version | {num, created_at, checksum, yanked}'
+```
+
+`checksum` is the SHA-256 of the published `.crate` file; `cargo build --locked` records
+and re-checks it via `Cargo.lock`. For a crate you maintain, prefer a git dependency
+pinned to the reviewed tag so the source stays auditable:
+
+```toml
+some-crate = { git = "https://github.com/<org>/<repo>", tag = "v<version>" }
+```
+
+#### Then Certify Or Exempt
+
 Two distinct flows; do not mix them:
 
 - **For a crate that you have actually reviewed**, run
@@ -87,6 +111,10 @@ Two distinct flows; do not mix them:
 - **For a crate you need temporarily without reviewing it**, add an exemption in
   `supply-chain/config.toml`. Exemptions are explicit “I am skipping this for now”
   records that other team members can see and chase.
+
+Either way, log the decision in `supply-chain-audit-log.md` per the
+[exception process](../README.md#the-exception-process): the reason, the exact
+`crate@version`, the verified checksum, and a `Reviewed-by:` sign-off.
 
 ### Step 7: Watch `build.rs` And Proc-Macro Crates
 
