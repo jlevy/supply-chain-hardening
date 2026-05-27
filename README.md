@@ -277,6 +277,12 @@ Scope: applies to `dependencies`, `devDependencies` (historically *more* dangero
 since build tooling runs with full developer privileges), `peerDependencies`, and
 `optionalDependencies`; to new installs and upgrades; and to transitive dependencies to
 the extent the package manager enforces it.
+The cool-off applies to the **whole resolved set, not just the package you named**:
+adding or upgrading one dependency can pull in many transitive packages, any of which
+may be brand-new, so review the full lockfile diff and confirm the window for *every*
+newly added package.
+To fix a single violator without re-resolving the whole graph, pin it forward in place
+(e.g. `uv lock --upgrade-package <name>==<version>`, `pnpm update <pkg>@<version>`).
 Pins resolved before adopting the policy are grandfathered until their next planned
 upgrade.
 
