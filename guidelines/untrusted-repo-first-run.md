@@ -112,7 +112,7 @@ Confirm none of the following are present inside the sandbox:
 | Ecosystem | What runs at install / build / test | Mitigation (still: do it in a sandbox) |
 | --- | --- | --- |
 | npm / pnpm | `preinstall`, `install`, `postinstall`, `prepare`, `prepublish` scripts | `NPM_CONFIG_IGNORE_SCRIPTS=true`; lifecycle scripts disabled |
-| Python (sdist) | `setup.py`, `setup.cfg`, PEP 517 build backend at `pip install` / `uv pip install` | `PIP_ONLY_BINARY=:all:`, `UV_NO_BUILD=true` refuse sdists |
+| Python (sdist) | `setup.py`, `setup.cfg`, PEP 517 build backend at `pip install` / `uv pip install` | `PIP_ONLY_BINARY=:all:`; uv `--no-build` per command (don’t export a blanket `UV_NO_BUILD` — it breaks `uv sync` of the repo’s own package) |
 | Python (wheel) | Module top-level code at `import` time; not at install | No install-time control; isolate at import |
 | Rust | `build.rs` at any `cargo build | check |
 | Go | Test files at any `go test ./...`. No install-time hooks; `go build` itself does not run module code | `-mod=readonly` does not stop test execution; use sandbox for tests |

@@ -375,8 +375,11 @@ Apply all three.
 
 Refuses to install any version published after a rolling cutoff.
 
-- **uv:** `UV_EXCLUDE_NEWER="14 days"`. Accepts friendly durations natively.
-  No date arithmetic needed.
+- **uv:** `UV_EXCLUDE_NEWER="14 days"`. Accepts friendly durations on uv >= 0.9
+  (verified on 0.9.25 and 0.11.16); uv 0.8.x and earlier reject them
+  (`'14 days' could not be parsed as a valid date`), so run a current uv or use an
+  absolute `YYYY-MM-DD` date there.
+  No date arithmetic needed on a current uv.
   The environment variable works for `uv pip install`, `uv sync`, `uv lock`, and
   `uv add`.
 - **pip (>=26.1):** `PIP_UPLOADED_PRIOR_TO="P14D"`. ISO 8601 duration.
@@ -398,7 +401,8 @@ Refuses to install any version published after a rolling cutoff.
 
 **Catches:** every recent attack.
 Malicious versions are detected within minutes-to-hours and yanked, but they remain
-“published after my cutoff” for 7+ days regardless.
+“published after my cutoff” for the full cool-off window (14 days by default)
+regardless.
 
 **Bypass per command:** `UV_EXCLUDE_NEWER= uv pip install some-pkg` or
 `PIP_UPLOADED_PRIOR_TO= pip install some-pkg`.
@@ -410,11 +414,19 @@ Source distributions (`sdist`) execute arbitrary Python code during installation
 Wheels do not execute code at install time.
 
 - **pip:** `PIP_ONLY_BINARY=":all:"` or `pip install --only-binary :all:`.
-- **uv:** `UV_NO_BUILD=true` (equivalent to `--no-build`; refuses to build any source
-  distribution). uv prefers wheels by default but will fall back to sdists unless this is
-  set. uv does not expose `--only-binary` as an environment variable; the `--only-binary`
+- **uv:** `--no-build` (or `UV_NO_BUILD=true`) refuses to build any source distribution.
+  uv prefers wheels by default but will fall back to sdists unless this is set.
+  uv does not expose `--only-binary` as an environment variable; the `--only-binary`
   flag is available on the CLI and as `only-binary` under `[tool.uv.pip]` in
-  `pyproject.toml` / `uv.toml`.
+  `pyproject.toml` / `uv.toml`. **Do not export `UV_NO_BUILD=true` globally:** uv builds
+  your project’s own (editable) package on every `uv sync`, so a blanket `UV_NO_BUILD`
+  fails it (`Distribution ... can't be installed because it is marked as --no-build`;
+  verified on uv 0.8.17 and 0.11.16). Apply uv’s no-build guard per command on
+  third-party installs (`uv pip install --no-build <dep>`,
+  `uv tool install --no-build <tool>`), or deny-list specific packages with
+  `UV_NO_BUILD_PACKAGE="pkg-a pkg-b"`, rather than exporting the blanket flag.
+  pip’s `PIP_ONLY_BINARY=":all:"` does **not** have this problem — it still builds your
+  local project — which is why only pip’s control is exported globally below.
 - **uv (project mode):** set `no-build = true` in `[tool.uv]` in `pyproject.toml` or
   `uv.toml`.
 - **uv (pip-mode project config):** set `only-binary = [":all:"]` in `[tool.uv.pip]` if
@@ -485,17 +497,23 @@ The same file works on macOS, Linux, and WSL.
 ```sh
 # ~/.pypi-hardening.sh -- POSIX sh; works in bash, zsh, dash, sh
 
-# Rolling 14-day quarantine for uv. Friendly duration; no date arithmetic.
+# Rolling 14-day quarantine for uv. Friendly duration on uv >= 0.9; uv 0.8.x and earlier
+# reject "14 days" -- run a current uv, or use an absolute date there (e.g. 2026-05-13).
 export UV_EXCLUDE_NEWER="14 days"
 
 # Rolling 14-day quarantine for pip >=26.1. ISO 8601 duration.
 export PIP_UPLOADED_PRIOR_TO="P14D"
 
 # Refuse source distributions. Blocks setup.py code execution at install time.
-# UV_NO_BUILD is the uv equivalent of --no-build. uv does not expose an env var
-# named UV_ONLY_BINARY; use this or set only-binary in [tool.uv.pip] project config.
+# pip's --only-binary still builds your own local/editable project, so it is safe to
+# export globally. uv does not expose an env var named UV_ONLY_BINARY.
 export PIP_ONLY_BINARY=":all:"
-export UV_NO_BUILD=true
+
+# NOTE: do NOT add `export UV_NO_BUILD=true` here. uv builds your project's own editable
+# package on every `uv sync`, so a blanket UV_NO_BUILD breaks it (verified on uv 0.8.17
+# and 0.11.16). Apply uv's no-build guard where it protects you -- per-command on
+# third-party installs (`uv pip install --no-build <dep>`) or as a package deny-list
+# (`export UV_NO_BUILD_PACKAGE="pkg-a pkg-b"`).
 ```
 
 The next several sections wire this file into each platform and shell.
@@ -535,10 +553,10 @@ Cover both by adding the sourcer to both `~/.bash_profile` (or `~/.profile`) and
 
 ```fish
 # Append to ~/.config/fish/conf.d/pypi-hardening.fish
+# (No UV_NO_BUILD: a blanket export breaks `uv sync`; scope it per command instead.)
 set -gx UV_EXCLUDE_NEWER "14 days"
 set -gx PIP_UPLOADED_PRIOR_TO "P14D"
 set -gx PIP_ONLY_BINARY ":all:"
-set -gx UV_NO_BUILD true
 ```
 
 fish does not source POSIX files cleanly, so reproduce the exports directly.
@@ -550,7 +568,6 @@ Files under `~/.config/fish/conf.d/` are auto-sourced.
 echo "$UV_EXCLUDE_NEWER"       # 14 days
 echo "$PIP_UPLOADED_PRIOR_TO"  # P14D
 echo "$PIP_ONLY_BINARY"        # :all:
-echo "$UV_NO_BUILD"            # true
 ```
 
 ## Setup: Linux (Debian/Ubuntu/Fedora/RHEL/Arch)
@@ -592,10 +609,10 @@ units, is `environment.d`:
 
 ```ini
 # ~/.config/environment.d/pypi-hardening.conf
+# (No UV_NO_BUILD: a blanket export breaks `uv sync`; scope it per command instead.)
 UV_EXCLUDE_NEWER=14 days
 PIP_UPLOADED_PRIOR_TO=P14D
 PIP_ONLY_BINARY=:all:
-UV_NO_BUILD=true
 ```
 
 ## Setup: Windows
@@ -608,10 +625,10 @@ Create the file if it does not exist.
 
 ```powershell
 # Append to $PROFILE
+# (No UV_NO_BUILD: a blanket export breaks `uv sync`; scope it per command instead.)
 $env:UV_EXCLUDE_NEWER = "14 days"
 $env:PIP_UPLOADED_PRIOR_TO = "P14D"
 $env:PIP_ONLY_BINARY = ":all:"
-$env:UV_NO_BUILD = "true"
 ```
 
 ### PowerShell 5 (Windows PowerShell)
@@ -626,10 +643,10 @@ Setting the variables in the user’s registry hive makes them visible to cmd, P
 and any GUI-launched process the user starts:
 
 ```powershell
+# (No UV_NO_BUILD: a blanket export breaks `uv sync`; scope it per command instead.)
 [Environment]::SetEnvironmentVariable("UV_EXCLUDE_NEWER", "14 days", "User")
 [Environment]::SetEnvironmentVariable("PIP_UPLOADED_PRIOR_TO", "P14D", "User")
 [Environment]::SetEnvironmentVariable("PIP_ONLY_BINARY", ":all:", "User")
-[Environment]::SetEnvironmentVariable("UV_NO_BUILD", "true", "User")
 ```
 
 ### cmd.exe
@@ -643,7 +660,7 @@ entries:
 setx UV_EXCLUDE_NEWER "14 days"
 setx PIP_UPLOADED_PRIOR_TO "P14D"
 setx PIP_ONLY_BINARY ":all:"
-setx UV_NO_BUILD "true"
+:: No UV_NO_BUILD: a blanket export breaks `uv sync`; scope it per command instead.
 ```
 
 Note: `setx` does not affect the current cmd session; open a new shell to pick up the
@@ -675,16 +692,21 @@ Inject the variables into the runner’s environment explicitly.
 
 ```yaml
 env:
-  UV_EXCLUDE_NEWER: "14 days"
-  UV_NO_BUILD: "true"
+  UV_EXCLUDE_NEWER: "14 days"   # friendly duration needs uv >= 0.9; pin a recent uv
   PIP_ONLY_BINARY: ":all:"
   PIP_UPLOADED_PRIOR_TO: "P14D"
+  # No UV_NO_BUILD: `uv sync` builds this project's own package, and a blanket no-build
+  # would fail it. The frozen lockfile is the gate; vet sdist-only third-party deps at
+  # add/upgrade time with `uv pip install --no-build` instead.
 
 jobs:
   install:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8
+        with:
+          version: "0.11.16"     # pin a recent uv; verify against pypi.org/project/uv/
       - run: uv sync --frozen
       - run: pip-audit
 ```
@@ -693,10 +715,10 @@ jobs:
 
 ```yaml
 variables:
-  UV_EXCLUDE_NEWER: "14 days"
-  UV_NO_BUILD: "true"
+  UV_EXCLUDE_NEWER: "14 days"   # friendly duration needs uv >= 0.9; pin a recent uv
   PIP_ONLY_BINARY: ":all:"
   PIP_UPLOADED_PRIOR_TO: "P14D"
+  # No UV_NO_BUILD here: it breaks `uv sync` of your own package; scope it per command.
 ```
 
 ### CircleCI, Buildkite, Jenkins
@@ -713,9 +735,12 @@ Wheels bypass this entirely.
 
 ### Why Refusing sdists Is The Primary Defense
 
-Setting `PIP_ONLY_BINARY=":all:"` for pip and `UV_NO_BUILD=true` for uv forces the
+Setting `PIP_ONLY_BINARY=":all:"` for pip and applying `--no-build` for uv forces the
 installer to refuse any package that does not have a pre-built wheel available.
 This eliminates the entire class of `setup.py`-based attacks.
+Export `PIP_ONLY_BINARY` globally (it still builds your own local project), but apply
+uv’s `--no-build` / `UV_NO_BUILD` per command or via `UV_NO_BUILD_PACKAGE` — a blanket
+`export UV_NO_BUILD=true` breaks `uv sync` of your project’s own editable package.
 
 Note: pip’s `--only-binary` flag has the env-var equivalent `PIP_ONLY_BINARY` (pip
 auto-derives `PIP_<OPTION>` for every command-line flag).
@@ -806,10 +831,8 @@ with `--format json`.
 ### `pip-audit` (PyPA / Trail of Bits, Free)
 
 ```bash
-# install
-pip install pip-audit
-# or
-uv tool install pip-audit
+# Install as an isolated, pinned tool -- never as a project dependency (see note below).
+uv tool install --from "pip-audit==<pinned-version>" pip-audit
 
 # audit the current environment
 pip-audit
@@ -822,6 +845,17 @@ pip-audit --vulnerability-service osv
 ```
 
 Backed by PyPA Advisory Database and optionally OSV. Run after every dependency change.
+
+**Run scanners as isolated, pinned tools — never as project dependencies.** Adding
+`pip-audit` (or any scanner) to `[dependency-groups]` / `dev` drags its ~20 transitive
+packages into your `uv.lock`, putting the scanner’s own tree under the cool-off and
+audit surface you are trying to keep small (and those transitive deps are themselves
+often days-old). Export the locked set and scan it with a pinned `uvx` tool instead:
+
+```bash
+uv export --frozen --no-emit-project --all-extras --format requirements.txt > /tmp/reqs.txt
+uvx --from "pip-audit==<pinned-version>" pip-audit -r /tmp/reqs.txt
+```
 
 ### `safety` CLI (Safety / PyUp, Free Tier)
 
@@ -870,9 +904,9 @@ done
 ### Per-Project (When Adding Or Removing Dependencies)
 
 - [ ] To intentionally install a fresh package, unset only the age gate per command,
-  visibly: `UV_EXCLUDE_NEWER= uv add some-pkg`. Keep `UV_NO_BUILD` set; unset it
-  (`UV_NO_BUILD=`) only for the separate, louder case of a package that has no wheel and
-  must be built from source.
+  visibly: `UV_EXCLUDE_NEWER= uv add some-pkg`. Keep `PIP_ONLY_BINARY` set and reach for
+  `--no-build` only for the separate, louder case of a package that has no wheel and
+  must be built from source (`UV_NO_BUILD= uv pip install some-sdist-only-pkg`).
 - [ ] After lockfile change, run `osv-scanner scan source -L <lockfile>` or `pip-audit`.
 - [ ] Commit lockfile.
 
@@ -901,8 +935,8 @@ days?** Yes, by design.
 The trade-off: 14 days of delayed security patches versus the supply-chain-malware
 exposure window. Historically the latter has been the bigger source of incidents for
 typical projects. For a genuinely urgent CVE, take the documented exception (opt out per
-command, keeping `UV_NO_BUILD` / `PIP_ONLY_BINARY` set unless a source build is truly
-unavoidable), pin the exact version, and log it.
+command, keeping `PIP_ONLY_BINARY` set and the wheel-only / no-build posture in place
+unless a source build is truly unavoidable), pin the exact version, and log it.
 
 **How does this interact with Renovate or Dependabot?** Renovate supports
 `minimumReleaseAge: "14 days"` in `renovate.json`, which applies to all ecosystems
