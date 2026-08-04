@@ -7,7 +7,7 @@
 Chronological record of supply-chain audits performed against this machine or
 repository. Entries are appended in reverse-chronological order (newest at top).
 Format and procedure are defined in
-[guidelines/hardening-npm.md → “Keeping A Supply Chain Audit Log”](https://github.com/jlevy/supply-chain-hardening/blob/main/guidelines/hardening-npm.md#keeping-a-supply-chain-audit-log).
+[guidelines/hardening-npm.md → “Keeping a Supply Chain Audit Log”](https://github.com/jlevy/supply-chain-hardening/blob/main/guidelines/hardening-npm.md#keeping-a-supply-chain-audit-log).
 
 Every audit run leaves an entry here.
 The goal: a future reader (human or agent) can reconstruct exactly what was checked,
@@ -29,7 +29,7 @@ Before committing or sharing:
   The redaction marker should still convey shape (e.g. `internal-cluster-[REDACTED]`
   rather than removing the line entirely).
 - If the log is gitignored and lives only on a personal machine, redaction can be
-  lighter — but the file is still on disk and may be exfiltrated by the next malicious
+  lighter—but the file is still on disk and may be exfiltrated by the next malicious
   package. Treat all logs as recoverable.
 
 ## Entry Format
@@ -39,7 +39,7 @@ Keep empty sections (write “(none)”) rather than omitting them so the format
 consistent across entries.
 
 ```
-## YYYY-MM-DD — Short Title
+## YYYY-MM-DD—Short Title
 
 ### Context
 (Machine state, hardening configuration, auditor)
@@ -68,7 +68,7 @@ consistent across entries.
 
 * * *
 
-## <YYYY-MM-DD> — <Short Title For This Audit>
+## <YYYY-MM-DD>—<Short Title For This Audit>
 
 ### Context
 
@@ -111,7 +111,7 @@ Example:
 | --- | --- | --- | --- |
 | `<pkg>@<ver>` | `<MAL-YYYY-NNNN or GHSA-...>` | Malicious / CVE | <one-line summary> |
 
-### Analysis And Verdict
+### Analysis and Verdict
 
 For each finding that needs more than a one-line entry, write a subsection.
 Cover:
@@ -161,6 +161,6 @@ If nothing pending: `(none)`.
 What was the highest-severity real finding?
 What still needs to happen?>
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

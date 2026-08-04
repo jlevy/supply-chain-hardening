@@ -1,6 +1,6 @@
 # Untrusted Repo First Run
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-08-04
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -11,11 +11,22 @@ import-time code execute on your machine with your ambient credentials.
 The 2025-2026 wave (Shai-Hulud, TanStack, Mini Shai-Hulud, mysten-metrics,
 guardrails-ai, LiteLLM) routinely targeted exactly this moment.
 
+> [!WARNING]
+> **Opening the repo is now part of the risky step, not the safe preamble.** From April
+> 2026, campaigns commit editor and agent config that executes on folder open: the June
+> 2026 Miasma commits to `Azure/durabletask` planted a `.claude/settings.json`
+> `SessionStart` hook, and the August 2026 keyv worm wrote both that and a
+> `.vscode/tasks.json` `folderOpen` task.
+> Cloning remains safe.
+> Do the triage in [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md) →
+> “Triage Before You Open” before the repo reaches an editor or an agent, then come back
+> here before running anything.
+
 ## The Rule
 
-Do not run `install`, `build`, `test`, `run`, `dlx`, `npx`, `bunx`, `uvx`, `go run`,
-`cargo run`, `cargo build`, `cargo install`, or any equivalent command for an untrusted
-repo on a machine that has any of:
+Do not open in an editor or agent, and do not run `install`, `build`, `test`, `run`,
+`dlx`, `npx`, `bunx`, `uvx`, `go run`, `cargo run`, `cargo build`, `cargo install`, or
+any equivalent command for an untrusted repo on a machine that has any of:
 
 - cloud credentials (`~/.aws`, `~/.config/gcloud`, `~/.azure`, `~/.kube`, `~/.docker`)
 - SSH keys (`~/.ssh`, `~/.gnupg`)
@@ -93,7 +104,7 @@ unshare --user --net --mount sh -c '
 Caveats: `unshare --user` requires kernel support; the network namespace has no default
 route, so you may need to add a tightly-scoped veth pair if the install needs network.
 
-## What To Strip From The Sandbox
+## What To Strip From the Sandbox
 
 Confirm none of the following are present inside the sandbox:
 
@@ -111,13 +122,14 @@ Confirm none of the following are present inside the sandbox:
 
 | Ecosystem | What runs at install / build / test | Mitigation (still: do it in a sandbox) |
 | --- | --- | --- |
-| npm / pnpm | `preinstall`, `install`, `postinstall`, `prepare`, `prepublish` scripts | `NPM_CONFIG_IGNORE_SCRIPTS=true`; lifecycle scripts disabled |
-| Python (sdist) | `setup.py`, `setup.cfg`, PEP 517 build backend at `pip install` / `uv pip install` | `PIP_ONLY_BINARY=:all:`; uv `--no-build` per command (don’t export a blanket `UV_NO_BUILD` — it breaks `uv sync` of the repo’s own package) |
-| Python (wheel) | Module top-level code at `import` time; not at install | No install-time control; isolate at import |
-| Rust | `build.rs` at any `cargo build | check |
+| npm / pnpm | `preinstall`, `install`, `postinstall`, `prepare`, `prepublish` scripts; implicit `node-gyp` builds driven by `binding.gyp`, which Miasma wave 2 used to evade lifecycle-script monitoring | `NPM_CONFIG_IGNORE_SCRIPTS=true`; npm 12 blocks dependency lifecycle scripts and implicit `node-gyp` builds by default |
+| Python (sdist) | `setup.py`, `setup.cfg`, PEP 517 build backend at `pip install` / `uv pip install` | `PIP_ONLY_BINARY=:all:`; uv `--no-build` per command (don’t export a blanket `UV_NO_BUILD`, it breaks `uv sync` of the repo’s own package) |
+| Python (wheel) | Module top-level code at `import` time. **Also `.pth` files at every interpreter startup**, with no import and no build, which is how the June 2026 Hades campaign ran | No install-time control stops either. Audit `.pth` files (`hardening-pypi.md` → Step 5); isolate at import |
+| Rust | `build.rs` at any `cargo build`, `cargo check`, `cargo test`, or `cargo run`; proc-macros at compile time | No flag disables `build.rs`; read it, or build in a sandbox |
 | Go | Test files at any `go test ./...`. No install-time hooks; `go build` itself does not run module code | `-mod=readonly` does not stop test execution; use sandbox for tests |
+| Any (editor / agent) | `.vscode/tasks.json` `folderOpen` tasks, `.claude/settings.json` hooks, `.devcontainer` lifecycle commands, `.mcp.json` servers, at **folder open** | Workspace trust plus a pre-open review; see [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md) |
 
-## When To Skip The Sandbox
+## When To Skip the Sandbox
 
 Skipping is reasonable if **all** of the following hold:
 
@@ -132,6 +144,8 @@ small; the cost of one credential exfiltration is not.
 
 ## Pointers
 
+- [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md): the open-time
+  counterpart to this file, for the moment before you run anything.
 - [`SUPPLY-CHAIN-SECURITY.md`](../SUPPLY-CHAIN-SECURITY.md): the portable agent rule
   that points back to this procedure.
 - [`AGENTS.md`](../AGENTS.md): “Safety Rule For Agents” references this file.
@@ -140,6 +154,6 @@ small; the cost of one credential exfiltration is not.
   [`hardening-crates.md`](hardening-crates.md), [`hardening-go.md`](hardening-go.md)):
   each lists the install-time risks that this sandbox blunts.
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

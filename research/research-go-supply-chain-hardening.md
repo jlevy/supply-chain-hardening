@@ -44,7 +44,7 @@ mode becoming the default in Go 1.16 (2021). Unlike npm or PyPI, Go’s module s
 designed with several supply-chain defenses built into the toolchain itself.
 That design means the attack surface is meaningfully smaller, but not zero.
 
-## How Go’s Design Reduces The Attack Surface
+## How Go’s Design Reduces the Attack Surface
 
 Four design properties make Go modules structurally more resistant to supply-chain
 attacks than ecosystems like npm or PyPI:
@@ -204,7 +204,7 @@ runners, which have no Go equivalent.
 The recurring Go-specific risk remains module-proxy caching persistence (see
 `shopsprint/decimal` below), not worms.
 
-## BoltDB Typosquat: Mechanism And Indicators (2021-2025)
+## BoltDB Typosquat: Mechanism and Indicators (2021-2025)
 
 The BoltDB typosquat is notable for demonstrating how the Go module proxy caching
 mechanism can be weaponized for long-term persistence.
@@ -231,7 +231,7 @@ despite the GitHub source appearing clean.
 [Snyk](https://snyk.io/blog/go-malicious-package-alert/);
 [The Register](https://www.theregister.com/2025/02/04/golang_supply_chain_attack/))
 
-## shopsprint/decimal Typosquat: Mechanism And Indicators (Reported 2026-05)
+## shopsprint/decimal Typosquat: Mechanism and Indicators (Reported 2026-05)
 
 A second long-lived proxy-cached typosquat in the BoltDB mold, disclosed by Socket in
 May 2026. It is the clearest recent reminder that the Go module proxy is an availability
@@ -371,7 +371,7 @@ npm four-control pattern addresses.
 The additional hardening controls for Go target configuration errors and
 development-time drift.
 
-### Control 1: Explicit Proxy And Checksum Database
+### Control 1: Explicit Proxy and Checksum Database
 
 ```sh
 export GOPROXY="https://proxy.golang.org,direct"
@@ -393,7 +393,7 @@ Prevents `go build`, `go test`, `go run`, and `go install` from silently modifyi
 `go.mod` or `go.sum`. Any dependency change must be an explicit `go get` or
 `go mod tidy` invocation.
 
-### Control 3: Checksum Verification And Drift Detection
+### Control 3: Checksum Verification and Drift Detection
 
 ```sh
 go mod verify    # confirms on-disk modules match go.sum
@@ -404,7 +404,7 @@ Run both in CI. `go mod verify` catches tampering in the module cache.
 `go mod tidy -diff` (Go 1.23+) catches stale or missing entries in `go.mod` and
 `go.sum`.
 
-## Vendor Mode As A Defense
+## Vendor Mode As a Defense
 
 `go mod vendor` copies all dependencies into a `vendor/` directory within the project.
 Building with `-mod=vendor` (or `GOFLAGS="-mod=vendor"`) uses only vendored code, with
@@ -447,7 +447,7 @@ Source it from every shell init that matters.
 The same file works on macOS, Linux, and WSL.
 
 ```sh
-# ~/.go-hardening.sh — POSIX sh; works in bash, zsh, dash, sh
+# ~/.go-hardening.sh—POSIX sh; works in bash, zsh, dash, sh
 
 # Use the default public proxy and checksum database.
 # Stating them explicitly prevents accidental override.
@@ -737,7 +737,7 @@ https://deps.dev/go/github.com%2Fsome%2Fmodule
 - [ ] Review `go.mod` for unexpected `replace` directives.
 - [ ] Ensure Go is updated to at least 1.25.10 or 1.26.3 (fixes CVE-2026-42501).
 
-### Per-Project (When Adding Or Removing Dependencies)
+### Per-Project (When Adding or Removing Dependencies)
 
 - [ ] Use `go get <module>@<version>` with an explicit version.
 - [ ] Run `go mod tidy` after changes.
@@ -750,7 +750,7 @@ https://deps.dev/go/github.com%2Fsome%2Fmodule
 - [ ] Skim the Go Vulnerability Database and OSV.dev for new Go advisories.
 - [ ] Run `govulncheck ./...` against active projects.
 
-### When A New Named Attack Drops
+### When a New Named Attack Drops
 
 - [ ] Grep every `go.mod` in your workspace for the reported module paths.
 - [ ] If you have hits: remove the module, run `go mod tidy`, rotate all credentials
@@ -815,7 +815,7 @@ Docs”.
 - [The Hacker News: Malicious Go Crypto Module Steals Passwords, Deploys Rekoobe Backdoor](https://thehackernews.com/2026/02/malicious-go-crypto-module-steals.html)
 - [golang/go#79070: CVE-2026-42501, malicious module proxy can bypass checksum database](https://github.com/golang/go/issues/79070)
 
-### Design And Tooling References
+### Design and Tooling References
 
 - [Go Blog: How Go Mitigates Supply Chain Attacks (Filippo Valsorda, 2022)](https://go.dev/blog/supply-chain)
 - [Google Security Blog: Supply Chain Security for Go, Part 1 (2023)](https://security.googleblog.com/2023/04/supply-chain-security-for-go-part-1.html)
@@ -828,6 +828,6 @@ Docs”.
 - [deps.dev API](https://deps.dev/)
 - [Sonatype 2026 State of the Software Supply Chain](https://www.sonatype.com/state-of-the-software-supply-chain/introduction)
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

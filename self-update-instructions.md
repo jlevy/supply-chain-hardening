@@ -1,6 +1,6 @@
 # Self-Update Instructions
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-08-04
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -11,11 +11,15 @@ Three doc categories require updates on different cadences:
   record of named supply-chain incidents.
   Updated whenever a new incident is multi-source verified.
 - **Hardening guidelines** (`hardening-<ecosystem>.md`, plus the cross-ecosystem
-  `hardening-ci-cd.md`): brief operational action lists.
-  Update when configuration recipes change (new env var, new flag, new tool replacing an
-  old one). `hardening-ci-cd.md` covers publish-side and GitHub Actions controls that are
-  not specific to one registry; update it when a CI/CD control changes (new GitHub
-  Actions setting, new trusted/staged-publishing flow, new runner-hardening option).
+  `hardening-ci-cd.md` and `hardening-agent-workspaces.md`): brief operational action
+  lists. Update when configuration recipes change (new env var, new flag, new tool
+  replacing an old one).
+  `hardening-ci-cd.md` covers publish-side and GitHub Actions controls that are not
+  specific to one registry; update it when a CI/CD control changes (new GitHub Actions
+  setting, new trusted/staged-publishing flow, new runner-hardening option).
+  `hardening-agent-workspaces.md` covers open-time execution; update it when an agent or
+  editor changes its trust model, hook mechanism, or config file paths, which happens on
+  a faster cadence than package-manager changes.
 - **Research docs** (`research-<ecosystem>-supply-chain-hardening.md`): full
   threat-model and per-ecosystem-implementation references.
   Update when an ecosystem-specific control set or mechanism changes, or when there is
@@ -153,7 +157,7 @@ Procedure:
 `tests/validate-docs.py` (run automatically in CI via `.github/workflows/doc-lint.yml`)
 checks that every package-manager-shaped env-var name in the docs (`NPM_CONFIG_*`,
 `PIP_*`, `UV_*`, `CARGO_*`, and the `GO*` names we use) is in
-`tests/known-env-vars.txt`. This catches the “`UV_ONLY_BINARY`-class bug” — a
+`tests/known-env-vars.txt`. This catches the “`UV_ONLY_BINARY`-class bug”—a
 plausibly-named env var that does not actually exist.
 
 When you introduce a new env var in the docs:
@@ -176,12 +180,15 @@ before bumping the Last Verified Against table.
 
 | Tool | Version | Verified date | Validator | Notes |
 | --- | --- | --- | --- | --- |
-| npm | 11.x | 2026-05-23 | agent-assisted refresh | `NPM_CONFIG_MIN_RELEASE_AGE` requires 11.10+; staged publishing (`npm stage publish` / `npm stage approve`) GA 2026-05-20 requires 11.15+; OIDC trusted publishing requires 11.5.1+ |
-| pnpm | 10.x and 11.x | 2026-05-23 | agent-assisted refresh | 10.x reads `NPM_CONFIG_MINIMUM_RELEASE_AGE` (minutes); **pnpm 11 (2026-04-28) no longer reads `npm_config_*` — env prefix is `PNPM_CONFIG_*`, settings live in `pnpm-workspace.yaml` / `~/.config/pnpm/config.yaml`** ([release notes](https://pnpm.io/blog/releases/11.0)); v11 defaults `minimumReleaseAge: 1440` and `strictDepBuilds: true`; `allowBuilds` map replaced `onlyBuiltDependencies`/`neverBuiltDependencies` |
-| pip | 26.1 | 2026-05-12 | initial author | `PIP_UPLOADED_PRIOR_TO` accepts ISO 8601 duration in 26.1+ |
-| uv | latest | 2026-05-12 | initial author | `UV_NO_BUILD` documented; `UV_ONLY_BINARY` confirmed not a real env var |
+| npm | 12.0.2 | 2026-08-04 | agent-assisted refresh | **npm 12 (2026-07-08) blocks dependency lifecycle scripts and implicit `node-gyp` builds by default** via the root package’s `allowScripts` policy, managed with `npm install-scripts ls / approve / deny / prune` plus `npm rebuild`; `allow-git` and `allow-remote` default to `none`, so tarball-URL and git installs need `--allow-remote` / `--allow-git`; unknown `.npmrc` keys error only when `strict-npmrc=true` (default `false`), but unknown **CLI flags** always error; requires Node `^22.22.2 \|\| ^24.15.0 \|\| >=26.0.0`; `npm shrinkwrap` removed. `NPM_CONFIG_MIN_RELEASE_AGE` requires 11.10+; staged publishing requires 11.15+; OIDC trusted publishing requires 11.5.1+ |
+| pnpm | 10.x and 11.20.0 | 2026-08-04 | agent-assisted refresh | 10.x reads `NPM_CONFIG_MINIMUM_RELEASE_AGE` (minutes); **pnpm 11 (2026-04-28) no longer reads `npm_config_*`, the env prefix is `PNPM_CONFIG_*` and settings live in `pnpm-workspace.yaml` / `~/.config/pnpm/config.yaml`** ([release notes](https://pnpm.io/blog/releases/11.0)); v11 defaults `minimumReleaseAge: 1440` and `strictDepBuilds: true`; `allowBuilds` map replaced `onlyBuiltDependencies`/`neverBuiltDependencies` |
+| pip | 26.2.1 | 2026-08-04 | agent-assisted refresh | `PIP_UPLOADED_PRIOR_TO` accepts ISO 8601 duration in 26.1+ |
+| uv | 0.12.1 | 2026-08-04 | agent-assisted refresh | `exclude-newer-package` / `UV_EXCLUDE_NEWER_PACKAGE` gives per-package cool-off overrides (`<pkg>=false` exempts one package); 0.12 rejects MD5-only hashes in hash-checking mode, rejects wheels that could replace the Python interpreter, rejects name-mismatched distributions, and rejects PEP 517 backend paths escaping the source tree via symlinks; `UV_NO_BUILD` documented; `UV_ONLY_BINARY` confirmed not a real env var |
 | cargo | 1.83+ | 2026-05-12 | initial author | `cargo-vet`, `cargo-deny`, `cargo-audit` versions pinned in CI examples |
 | go | 1.25.10 / 1.26.3 | 2026-05-12 | initial author | Minimum for CVE-2026-42501 fix |
+| osv-scanner | v2.0.2 | 2026-05-23 | agent-assisted refresh | **Needs re-verification.** Pinned in the npm CI recipe; not re-checked on 2026-08-04 because the GitHub releases API was unreachable from the refresh session. Confirm against the [releases page](https://github.com/google/osv-scanner/releases) before the next refresh |
+| Claude Code | settings schema as of 2026-08-04 | 2026-08-04 | agent-assisted refresh | Precedence managed > CLI > local > project > user; project `.claude/settings.json` allow rules require workspace trust; `allowManagedHooksOnly`, `allowManagedPermissionRulesOnly`, `disableAllHooks`, `enableAllProjectMcpServers` drive the agent-workspace playbook |
+| VS Code | Workspace Trust as of 2026-08-04 | 2026-08-04 | agent-assisted refresh | `task.allowAutomaticTasks` defaults to `off`; automatic tasks never run in an untrusted workspace; `security.workspace.trust.*` settings drive the agent-workspace playbook |
 
 ### Procedure
 
@@ -193,6 +200,9 @@ before bumping the Last Verified Against table.
    - uv: <https://docs.astral.sh/uv/reference/environment/>
    - cargo: <https://doc.rust-lang.org/cargo/reference/config.html>
    - go: <https://pkg.go.dev/cmd/go#hdr-Environment_variables>
+   - Claude Code: <https://code.claude.com/docs/en/settings>
+   - VS Code Workspace Trust:
+     <https://code.visualstudio.com/docs/editing/workspaces/workspace-trust>
 3. Update `tests/known-env-vars.txt` if names changed.
 4. Run `python3 tests/validate-docs.py`; it must exit 0.
 5. Update the playbook if a control’s flag name or unit changed.
@@ -202,7 +212,27 @@ before bumping the Last Verified Against table.
    future readers; see
    [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md)).
 
-## Sourcing And Citation Rules
+## Maintaining `scripts/audit_workspace.py`
+
+The scanner carries three kinds of knowledge that decay at different rates.
+When a new open-time or load-time campaign is verified, update the matching constant and
+say which campaign motivated it:
+
+- **`KEYV_HOST_ARTIFACTS` and `KNOWN_PAYLOAD_FILENAMES`** are campaign-specific IOCs and
+  age fastest. Add new ones; do not delete old ones, since an old artifact on disk is
+  still a finding.
+- **`AGENT_INSTRUCTION_FILES` and `AGENT_INSTRUCTION_GLOBS`** track which files agents
+  read as trusted context.
+  Add a path whenever a widely-used agent introduces one.
+- **`PTH_ALLOWLIST_PREFIXES`** is the opposite: it suppresses findings, so additions
+  need more care than IOCs do.
+  Only add a prefix after confirming the file is generated by a packaging tool rather
+  than by a package author, and record why in a comment.
+
+Run the script against a synthetic repo containing each pattern after any change; a
+check that silently stops matching is worse than no check.
+
+## Sourcing and Citation Rules
 
 Both doc types share these rules:
 
@@ -215,7 +245,7 @@ Both doc types share these rules:
 - **Refresh URLs annually**; replace dead links with archive.org snapshots if no live
   source remains.
 
-## Adding A New Ecosystem
+## Adding a New Ecosystem
 
 To add an ecosystem not yet covered (RubyGems, Hex, NuGet, Composer, Maven, etc.):
 
@@ -225,7 +255,7 @@ To add an ecosystem not yet covered (RubyGems, Hex, NuGet, Composer, Maven, etc.
    - `hardening-<ecosystem>.md`
    - `research-<ecosystem>-supply-chain-hardening.md`
 3. Update the top-level `README.md` ecosystem index.
-4. Confirm both new docs follow `std-doc-guidelines.md` and include the footer.
+4. Confirm both new docs follow `common-doc-guidelines.md` and include the footer.
 
 ## Suggested Prompts For Agents
 
@@ -245,11 +275,11 @@ For a tooling-driven update to a hardening doc:
 For adding a new ecosystem:
 
 > Add hardening and research docs for the [ecosystem] supply chain.
-> Follow `self-update-instructions.md` → “Adding A New Ecosystem”.
+> Follow `self-update-instructions.md` → “Adding a New Ecosystem”.
 > Use the npm pair as the structural template; create `hardening-<ecosystem>.md` and
 > `research-<ecosystem>-supply-chain-hardening.md` in a single commit.
 > Update the top-level README ecosystem index.
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

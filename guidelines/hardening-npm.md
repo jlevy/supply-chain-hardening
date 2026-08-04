@@ -1,6 +1,6 @@
 # NPM Operational Hardening
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-08-04
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -13,12 +13,25 @@ This guide is install-side (protecting you as a *consumer*). If you also *publis
 packages, harden the release pipeline too: use OIDC trusted publishing instead of
 long-lived tokens, enable staged publishing (`npm stage publish` / `npm stage approve`,
 npm 11.15+), and follow [`hardening-ci-cd.md`](hardening-ci-cd.md).
-The May 2026 @antv worm forged a valid “verified” provenance badge, so do not treat
-provenance as proof.
+By mid-2026 a valid provenance badge stopped being evidence of anything but pipeline
+identity: @antv forged Sigstore attestations at runtime, and Miasma, IronWorm, and the
+keyv worm all republished through stolen OIDC credentials with attestations that verify.
+
+Two behaviours of the 2026 worms defeat assumptions this guide used to rest on:
+
+- **They bring their own runtime.** The keyv and Hades payloads download a standalone
+  Bun binary from GitHub releases and run under it.
+  Not having Bun installed is not protection, and detection keyed to `node` process
+  trees misses them.
+- **They plant repository-level autostart config.** A payload that also writes
+  `.claude/settings.json` or `.vscode/tasks.json` re-executes the next time anyone opens
+  the folder, with no `npm install` involved.
+  Cleaning `node_modules` does not remove it; see
+  [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md).
 
 ## Hardening (Ten-Minute Setup)
 
-### Step 1: Create The Hardening Script
+### Step 1: Create the Hardening Script
 
 The `~/.npm-hardening.sh` env-var recipe below applies to **npm (all versions) and pnpm
 10.x**. **pnpm 11 changed how it reads config** (see the pnpm 11 box after the script);
@@ -74,6 +87,40 @@ export NPM_CONFIG_STRICT_DEP_BUILDS=true
 > The `PNPM_CONFIG_*` env prefix works for processes that do not read the YAML, but the
 > YAML is the durable, reviewable source of truth.
 
+> **npm 12 (released 2026-07-08) blocks dependency lifecycle scripts by default.** This
+> is the control `NPM_CONFIG_IGNORE_SCRIPTS=true` was standing in for, now shipped as
+> the registry client’s default.
+> `preinstall`, `install`, `postinstall`, `prepare`, and implicit `node-gyp` builds do
+> not run for dependencies unless the root package’s `allowScripts` policy permits them.
+> 
+> Keep `NPM_CONFIG_IGNORE_SCRIPTS=true` set anyway: it still works in npm 12, it covers
+> older npm on other machines, and it is what your CI runner and your agent’s subprocess
+> inherit.
+> 
+> Three npm 12 changes alter the recipes in this guide:
+> 
+> - **Approvals are per-package and pinned.** `npm install-scripts ls` shows what is
+>   waiting, `npm install-scripts approve <pkg>` records `pkg@1.2.3` in `package.json`’s
+>   `allowScripts` field (narrowed to the version you reviewed), and `npm rebuild` then
+>   runs them. `npm install-scripts prune` clears stale entries.
+>   Review the diff of `allowScripts` like you would a lockfile diff, because an
+>   approval is a standing grant of code execution.
+> - **Git and remote-URL dependencies are blocked.** `allow-git` and `allow-remote` now
+>   default to `none`; `npm install <tarball-url>` and `npm install git+https://...`
+>   fail until you pass `--allow-remote` or `--allow-git`. Step 4’s surgical install
+>   needs those flags on npm 12.
+> - **Unknown config handling tightened.** Unknown *command-line flags* always error.
+>   Unknown `.npmrc` keys are still warnings unless `strict-npmrc=true`, which makes
+>   them hard errors. Keep the pnpm-only names (`NPM_CONFIG_FROZEN_LOCKFILE`,
+>   `NPM_CONFIG_MINIMUM_RELEASE_AGE`, `NPM_CONFIG_STRICT_DEP_BUILDS`) in the environment
+>   as Step 1 does, not in `.npmrc` and not as npm CLI flags, so `strict-npmrc` cannot
+>   turn them into errors.
+> 
+> npm 12 also requires Node `^22.22.2 || ^24.15.0 || >=26.0.0` and removes
+> `npm shrinkwrap`; rename `npm-shrinkwrap.json` to `package-lock.json` if you still
+> have one. `--dangerously-allow-all-scripts` exists and is named accurately; do not use
+> it in CI.
+
 ### Step 2: Source From Shell Init
 
 Pick the line for every shell you use.
@@ -126,7 +173,7 @@ pnpm --version                     # 11.x
 pnpm config get minimumReleaseAge  # 20160 (not 1440)
 pnpm config get strictDepBuilds    # true
 pnpm config get ignoreScripts      # true
-# Smoke test: a just-published version must be refused by the 14-day gate.
+# Smoke test: A just-published version must be refused by the 14-day gate.
 pnpm add --dry-run <some-package-published-in-the-last-day> 2>&1 | head
 ```
 
@@ -138,7 +185,7 @@ process** with `env | grep` rather than trusting your terminal’s view.
 On Linux, prefer `~/.config/environment.d/npm-hardening.conf` for systemd-launched
 processes (see the research doc).
 
-#### Names And Units Differ Between npm And pnpm
+#### Names and Units Differ Between npm and pnpm
 
 | Tool | Setting | Unit |
 | --- | --- | --- |
@@ -146,6 +193,15 @@ processes (see the research doc).
 | npm 11.10+ | `NPM_CONFIG_MIN_RELEASE_AGE` | days (integer) |
 | pnpm 10.16-10.x | `NPM_CONFIG_MINIMUM_RELEASE_AGE` | minutes (integer) |
 | pnpm 11+ | `minimumReleaseAge` in `pnpm-workspace.yaml` (env: `PNPM_CONFIG_MINIMUM_RELEASE_AGE`) | minutes (integer) |
+
+Script-execution policy differs the same way:
+
+| Tool | Setting | Default |
+| --- | --- | --- |
+| npm 11 and earlier | `ignore-scripts` | scripts run |
+| npm 12+ | `allowScripts` in `package.json`, managed with `npm install-scripts` | scripts blocked |
+| pnpm 10.16-10.x | `onlyBuiltDependencies` / `neverBuiltDependencies` | scripts run |
+| pnpm 11+ | `allowBuilds` map plus `strictDepBuilds` | `strictDepBuilds: true` |
 
 Do not set both `NPM_CONFIG_BEFORE` and `NPM_CONFIG_MIN_RELEASE_AGE` for npm; pick one
 based on your npm version.
@@ -166,7 +222,7 @@ Agents”.
 For untrusted first-runs, see
 [`untrusted-repo-first-run.md`](untrusted-repo-first-run.md).
 
-### Step 4: When You Intentionally Need A Fresh Package
+### Step 4: When You Intentionally Need a Fresh Package
 
 The cool-off gate applies at **version resolution**, so the safest exception touches a
 single vetted package instead of relaxing the gate for the whole dependency graph.
@@ -197,13 +253,18 @@ Resolution-time controls (`before` / `minimum-release-age`) still apply to that
 package’s dependencies, so the rest of the graph stays quarantined.
 
 ```sh
-# Direct tarball URL (use the dist.tarball value from the verify step):
-npm install https://registry.npmjs.org/<pkg>/-/<pkg>-<version>.tgz
+# Direct tarball URL (use the dist.tarball value from the verify step).
+# npm 12 blocks remote-URL installs by default, hence --allow-remote:
+npm install --allow-remote https://registry.npmjs.org/<pkg>/-/<pkg>-<version>.tgz
 pnpm add --no-frozen-lockfile https://registry.npmjs.org/<pkg>/-/<pkg>-<version>.tgz
 
-# Git ref (strongest for packages you maintain: auditable source, pinned tag):
-npm install git+https://github.com/<org>/<repo>#v<version>
+# Git ref (strongest for packages you maintain: auditable source, pinned tag).
+# npm 12 blocks git dependencies by default, hence --allow-git:
+npm install --allow-git git+https://github.com/<org>/<repo>#v<version>
 ```
+
+Drop `--allow-remote` / `--allow-git` on npm 11 and earlier, where they are unknown
+flags and will error.
 
 Adding any package updates the lockfile; that mutation is expected and is separate from
 the age gate (pass `--no-frozen-lockfile` to pnpm if your config sets
@@ -211,11 +272,11 @@ the age gate (pass `--no-frozen-lockfile` to pnpm if your config sets
 `minimum-release-age`, and neither can linger in an interactive shell the way an
 exported env var can.
 
-#### Relax The Gate (Last Resort)
+#### Relax the Gate (Last Resort)
 
 Only when the package has no fetchable tarball or git ref.
-Unset the age gate **inline for one command** — never `export` it — and cover both
-naming variants since you may not recall which your tool honors:
+Unset the age gate **inline for one command**—never `export` it—and cover both naming
+variants since you may not recall which your tool honors:
 
 ```sh
 NPM_CONFIG_BEFORE= NPM_CONFIG_MIN_RELEASE_AGE=0 NPM_CONFIG_MINIMUM_RELEASE_AGE=0 \
@@ -231,19 +292,19 @@ committing.
 Every exception, whichever install method you use, follows the same three steps and ends
 in the [exception process](../README.md#the-exception-process):
 
-1. **Verify** —
+1. **Verify:**
    `npm view <pkg>@<version> _npmUser maintainers time.<version> dist.integrity dist.shasum`;
    confirm publisher, publish time, and integrity (plus the git-tag match for packages
    you maintain).
-2. **Install surgically** — tarball URL or git ref; do not touch the global age gate.
-3. **Record** — log the exception in `supply-chain-audit-log.md` with the reason (a CVE
+2. **Install surgically:** tarball URL or git ref; do not touch the global age gate.
+3. **Record:** log the exception in `supply-chain-audit-log.md` with the reason (a CVE
    ID for security patches), the exact `package@version` pin, and the verified integrity
    hash. Agents prepare this record; a human signs off.
 
 The env vars in Step 1 enforce the 14-day default; everything in Step 5 helps you hold
 the line at upgrade time.
 
-### Step 5: Enforce The 14-Day Cool-Off At Upgrade Time
+### Step 5: Enforce the 14-Day Cool-Off At Upgrade Time
 
 `NPM_CONFIG_MINIMUM_RELEASE_AGE` gates resolution; `npm-check-updates --cooldown` gates
 the upgrade decision itself.
@@ -268,7 +329,7 @@ Optional pre-push guard that fails if any direct dependency is younger than 14 d
 
 ```sh
 #!/usr/bin/env bash
-# scripts/check-package-age.sh — wire into a pre-push hook (lefthook/husky).
+# scripts/check-package-age.sh—wire into a pre-push hook (lefthook/husky).
 COOLDOWN_DAYS=14
 now=$(date -u +%s)
 fail=0
@@ -314,14 +375,18 @@ uv run scripts/audit_npm.py --packages chalk@5.6.1 debug@4.4.2
 See [scripts/README.md](../scripts/README.md) for full usage, exit codes, and the
 rationale for using a Python-stdlib script rather than a Node-based one.
 
-### Step 2: Grep For Known IOCs From The Most Recent Named Attacks
+### Step 2: Grep For Known IOCs From the Most Recent Named Attacks
 
-The most relevant attacks as of 2026-05-23. Canonical full list (cross-ecosystem) is in
+The most relevant attacks as of 2026-08-04. Full cross-ecosystem list is in
 [`compromised-packages.md`](../compromised-packages.md); this is the npm quick-grep
 extract:
 
 | Date | Name | Quick IOC Pattern |
 | --- | --- | --- |
+| 2026-08-04 | keyv / cacheable worm | `keyv@6.0.0`, `cacheable@2.5.1`, `cacheable-request@13.0.20`, `flat-cache@6.1.24`, `file-entry-cache@11.1.7`, `cache-manager@7.2.10`, `@cacheable/net@2.1.1`, `@thiennq/docs-viewer@1.6.2`. On-disk: `setup.mjs`, `Math_Symbol.js`, `math_init.js`, `bun-dl-*`. **Check for the `gh-token-monitor` watcher and remove it before revoking anything** (see Step 3) |
+| 2026-06-03 | IronWorm | `weavedb-sdk`, `weavedb-lite`, `arnext`, `roidjs`, `zkjson`, `wao` and others from the `asteroiddao` account; on-disk `tools/setup` (~976 KB Rust ELF), `.github/scripts/precheck`, `q2.bpf.c` |
+| 2026-06-01..04 | Miasma | `@redhat-cloud-services/frontend-components@7.7.2`/`7.7.3`/`7.7.5`, `@redhat-cloud-services/rbac-client@9.0.3`/`9.0.4`/`9.0.6`, `@redhat-cloud-services/insights-client@4.0.4`/`4.0.5`/`4.0.7`. Wave 2 hid execution in `binding.gyp` rather than a lifecycle script, so grep build files too |
+| 2026-05-19 | TrapDoor | `crypto-credential-scanner`, `wallet-backup-verifier`, `llm-context-compressor`, `prompt-engineering-toolkit` and others; on-disk `trap-core.js` (48,485 bytes), marker `P-2024-001`, zero-width Unicode in `.cursorrules` / `CLAUDE.md` |
 | 2026-05-19 | @antv (Mini Shai-Hulud) | `@antv/g@6.4.1`, `@antv/g@6.5.1`, `echarts-for-react@3.1.7`, `size-sensor@1.0.4`; full list via GitHub Advisory DB `type:malware` for the `atool` scope (e.g. `GHSA-6fr3-r6r6-h4h9`). Note: forged “verified” provenance, badge is not proof |
 | 2026-05-18 | Megalodon / Tiledesk | `@tiledesk/tiledesk-server@2.18.6`, `2.18.7`, `2.18.9`, `2.18.10`, `2.18.11`, `2.18.12` (clean `2.18.5`); see [GHSA-5vfv-hpg7-77hj](https://github.com/advisories/GHSA-5vfv-hpg7-77hj) |
 | 2026-05-14 | node-ipc | `node-ipc@9.1.6`, `node-ipc@9.2.3`, `node-ipc@12.0.1`. Fires at `require()`, not via install script, so `ignore-scripts` does not block it |
@@ -351,6 +416,13 @@ done
 
 ### Step 3: If You Have Hits
 
+> [!WARNING]
+> **Check for a revocation watcher before you rotate anything.** The 2026-08-04 keyv
+> worm installs a dead-man’s switch that polls GitHub every 60 seconds and, on an HTTP
+> 4xx indicating the stolen token was revoked, runs `eval` on a handler string supplied
+> by the operator. For that payload the usual “rotate immediately” reflex is the trigger.
+> Run the check in Step 3 below first; it is cheap and harmless when nothing is there.
+
 Follow the eight steps in order.
 Items marked “ecosystem-specific” describe what to do for npm; the same eight-step
 outline appears in every per-ecosystem playbook so that incident response stays
@@ -365,16 +437,34 @@ consistent regardless of which registry was hit.
    / `~/.bash_history`, save `npm config list --json`, `gh api /user` output, and any
    active OSV-scanner output.
    Commit these into the private audit log before mutating anything.
-3. **Rotate tokens by category.** npm tokens (`npm token list`, then revoke); GitHub PAT
-   and OAuth (Settings → Developer settings, and `gh api /user/runners` to look for
-   persistence); cloud (`~/.aws/credentials`, `~/.config/gcloud/`, Azure CLI); SSH
-   (`~/.ssh/*`); any env-var-stored API keys.
+3. **Remove revocation-triggered persistence, then rotate.** First check for the keyv
+   worm’s watcher and remove it if present:
+
+   ```sh
+   python3 scripts/audit_workspace.py --only host .
+   # Manual equivalent:
+   ls -la ~/.config/gh-token-monitor/ ~/.local/bin/gh-token-monitor.sh 2>/dev/null
+   launchctl list 2>/dev/null | grep -i gh-token-monitor                    # macOS
+   systemctl --user list-unit-files 2>/dev/null | grep -i gh-token-monitor  # Linux
+   ```
+
+   Then **revoke** (not merely rotate) by category, working from a different clean
+   machine: npm tokens (`npm token list`, then revoke); GitHub PAT and OAuth (Settings →
+   Developer settings, and `gh api /user/runners` to look for persistence); cloud
+   (`~/.aws/credentials`, `~/.config/gcloud/`, Azure CLI); Vault and Kubernetes service
+   account tokens; SSH (`~/.ssh/*`); any env-var-stored API keys, including AI provider
+   keys, which IronWorm swept explicitly.
 4. **Check persistence mechanisms specific to this payload.** Shai-Hulud 2.0 registers a
    self-hosted GitHub runner literally named `SHA1HULUD`; check `gh api /user/runners`
    and `gh api /orgs/<org>/actions/runners`. qix / browser-hijack variants do not have
    persistence; worm variants do.
    Look at `~/.bash_history`, recent `crontab -l`, `launchctl list` (macOS), and
    `systemctl --user list-unit-files --state=enabled` (Linux).
+   Since April 2026, also check the **repository** for autostart config the payload may
+   have written (`.claude/settings.json`, `.vscode/tasks.json`, `.devcontainer/`), which
+   re-executes when the folder is next opened even if `node_modules` is clean:
+   `python3 scripts/audit_workspace.py .` and
+   [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md).
 5. **Remove or downgrade the affected dependency.** Pin to the immediately-prior version
    in `package.json`, then `pnpm install --before=<date-of-known-good>` or `npm ci`
    against a clean lockfile.
@@ -392,7 +482,7 @@ consistent regardless of which registry was hit.
    Record raw findings, analysis, every action with timestamps, and any pending
    follow-ups. Redact live credentials per the template’s Redaction Rules.
 
-## Keeping A Supply Chain Audit Log
+## Keeping a Supply Chain Audit Log
 
 Every audit run leaves a record.
 A consistent log lets a future reader (human or agent) reconstruct exactly what was
@@ -423,7 +513,7 @@ Keep empty sections (write “(none)”) rather than omitting them so the format
 consistent across entries.
 
 ```
-## YYYY-MM-DD — Short Title
+## YYYY-MM-DD—Short Title
 
 ### Context
 (Machine state, hardening configuration, auditor)
@@ -450,7 +540,7 @@ consistent across entries.
 (One paragraph summarising the audit outcome)
 ```
 
-### Rules For Agents Updating The Log
+### Rules For Agents Updating the Log
 
 1. **Append, do not rewrite.** New entries go at the top (reverse chronological).
    Earlier entries stay intact as historical record.
@@ -460,11 +550,11 @@ consistent across entries.
    after analysis, the analysis path goes in `### Analysis And Verdict`. Do not silently
    drop the finding from `### Raw Findings`.
 4. **Record every action with a timestamp.** Patches to scripts, version bumps,
-   credential rotations — all in `### Actions Taken` with the time and outcome.
+   credential rotations—all in `### Actions Taken` with the time and outcome.
 5. **Move incomplete items to `### Pending Actions`.** Empty `Pending Actions` is fine
    and explicit; missing section is not.
 
-### When To Open A New Entry
+### When To Open a New Entry
 
 - After every `audit_npm.py` run, or any `osv-scanner` run that surfaces hits.
 - After installing or upgrading a globally-scoped npm tool (`npm install -g`,
@@ -528,6 +618,6 @@ For early warning of new named attacks:
 - [Socket.dev](https://socket.dev/)
 - [Datadog Security Labs](https://securitylabs.datadoghq.com/)
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

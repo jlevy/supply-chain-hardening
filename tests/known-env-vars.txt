@@ -26,6 +26,7 @@ PIP_UPLOADED_PRIOR_TO                  # pip 26.1+; ISO 8601 duration or absolut
 PIP_CONFIG_FILE                        # pip; overrides config-file lookup
 PIP_EXTRA_INDEX_URL                    # pip; DANGEROUS for private packages (dep confusion)
 UV_EXCLUDE_NEWER                       # uv; friendly durations ("14 days") need uv >= 0.9
+UV_EXCLUDE_NEWER_PACKAGE               # uv; per-package cool-off override; `<pkg>=false` exempts one package
 UV_NO_BUILD                            # uv; equivalent of --no-build (refuses sdists)
 UV_NO_BUILD_PACKAGE                    # uv; deny-list sdist builds for specific packages
 UV_NO_BINARY                           # uv; equivalent of --no-binary (forces source builds)

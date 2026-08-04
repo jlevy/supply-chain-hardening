@@ -1,6 +1,6 @@
 # NPM Supply Chain Hardening
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-08-04
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -51,7 +51,7 @@ poisoning that reached `@tiledesk/tiledesk-server` (2026-05-18), and the **@antv
 Shai-Hulud worm (2026-05-19)**, which compromised 639 versions across 323 packages in a
 ~22-minute burst and was the first worm to forge valid Sigstore/SLSA provenance.
 
-## What The Attacks Have In Common
+## What the Attacks Have In Common
 
 Across every named incident in the 2025-2026 wave, the playbook collapses to three
 primitives:
@@ -119,7 +119,7 @@ provenance and compromised the *publish* pipeline rather than a consumer.
 Those vectors are addressed in
 [`../guidelines/hardening-ci-cd.md`](../guidelines/hardening-ci-cd.md).
 
-## TanStack Attack: Mechanism And Indicators (2026-05-11)
+## TanStack Attack: Mechanism and Indicators (2026-05-11)
 
 The TanStack compromise is documented in unusual depth because the maintainer published
 a detailed postmortem within hours and StepSecurity’s AI Package Analyst captured the
@@ -170,14 +170,14 @@ network)**
 
 **Persistence and tampering IOCs**
 
-- `.claude/settings.json` — a `SessionStart` hook entry, relevant to Claude Code users.
-- `.vscode/tasks.json` — a `folderOpen` task, relevant to VSCode workspaces.
+- `.claude/settings.json`—a `SessionStart` hook entry, relevant to Claude Code users.
+- `.vscode/tasks.json`—a `folderOpen` task, relevant to VSCode workspaces.
 - systemd user service or LaunchAgent for ongoing GitHub-token monitoring.
 - Dead-man’s-switch via an npm token literally named
-  `IfYouRevokeThisTokenItWillWipeTheComputerOfTheOwner` — designed to discourage
+  `IfYouRevokeThisTokenItWillWipeTheComputerOfTheOwner`—designed to discourage
   revocation.
 - Commits authored as `claude@users.noreply.github.com` with message
-  `chore: update dependencies` — fake “Claude Code” attribution.
+  `chore: update dependencies`—fake “Claude Code” attribution.
 
 **Cross-ecosystem propagation**
 
@@ -196,7 +196,7 @@ to a non-registry GitHub URL. Socket’s pipeline executed the payload in a sand
 Both reported publicly within hours; npm Security yanked the tarballs server-side;
 TanStack deprecated all 84 versions and rotated/purged their GitHub Actions caches.
 
-## @antv Mini Shai-Hulud: Mechanism And Indicators (2026-05-19)
+## @antv Mini Shai-Hulud: Mechanism and Indicators (2026-05-19)
 
 The @antv wave is the most significant npm worm since Shai-Hulud 2.0 and the first to
 defeat provenance verification.
@@ -254,6 +254,111 @@ The account was taken over by re-registering an expired email domain
 The defense here is the release-age quarantine (the bad versions were yanked within the
 cool-off window) plus lockfile review, not `ignore-scripts`.
 
+## keyv / cacheable Worm: Mechanism and Indicators (2026-08-04)
+
+The keyv wave matters less for its scale than for three techniques that each defeat a
+control this guide previously treated as sufficient.
+Socket flagged `keyv@6.0.0` roughly six minutes after publication; SafeDep, Aikido, and
+Wiz published concurrent analyses.
+
+**Scale and response**
+
+Counts differ across vendors because the registry changed faster than any single crawl:
+SafeDep recorded 2,234 malicious versions across 444 packages between 09:35 and 13:18
+UTC, Aikido at least 1,381 versions across 868 packages, and Socket 442 versions across
+353 names. The worm crossed into nine unrelated organisations (`@ornikar`, `@deliveroo`,
+`@servicetitan`, `@qlik`, `@onereach`, `@or-sdk`, `@arv-bedrock`, `@adminide-stack`) in
+roughly half an hour, moving between orgs every two to seven minutes.
+`keyv` alone carries ~127M weekly downloads.
+The published `@keyv/*` adapters and the Keyv 5.x line were clean; npm restored earlier
+releases as `latest` the same day.
+
+**Technique 1: bring your own runtime**
+
+Stage 1 is `setup.mjs`, a lightly obfuscated Node preinstall hook that detects platform
+and architecture, downloads a standalone **Bun 1.3.13** binary from the official
+`oven-sh/bun` GitHub releases URL without verification, and executes stage 2 under it.
+Stage 2 (`Math_Symbol.js`, ~728 KB, polymorphic basE91 string encoding, modules
+`[collector]`, `[dispatcher]`, `[provenance]`, `[publish]`) never runs under Node.
+
+Two consequences. Detection keyed to Node process trees or to `node_modules` script
+fields misses the payload entirely.
+And “we do not use Bun” is not a control, because the package supplies its own copy.
+The June 2026 Hades PyPI campaign used the same bring-your-own-Bun trick from a `.pth`
+hook, which is the strongest evidence that this is a deliberate, portable evasion rather
+than an implementation detail.
+
+**Technique 2: revocation-triggered dead-man’s switch**
+
+The payload writes a GitHub token and a handler string to
+`~/.config/gh-token-monitor/{token,handler}` (mode 600) and installs a watcher at
+`~/.local/bin/gh-token-monitor.sh`, persisted as a macOS LaunchAgent
+(`com.user.gh-token-monitor`, `RunAtLoad` and `KeepAlive`) or a Linux systemd user
+service with `loginctl enable-linger`. The watcher polls the GitHub API every 60
+seconds. On an HTTP 4xx, meaning the stolen token has been revoked, it `eval`s the
+operator-supplied handler string.
+It self-clears after 24 hours.
+
+This inverts standard incident response.
+“Rotate credentials immediately” is the trigger condition.
+The correct order is: isolate the host, remove the watcher and its unit file, then
+revoke from a different clean machine.
+The [agent-workspace guide](../guidelines/hardening-agent-workspaces.md) and the npm
+playbook’s “If You Have Hits” both lead with this now.
+
+**Technique 3: repository autostart hooks**
+
+Beyond the npm tarball, the campaign wrote a `.claude/settings.json` `SessionStart` hook
+and a `.vscode/tasks.json` task with `"runOn": "folderOpen"` into the repository, each
+invoking the loader from the other tool’s directory.
+Neither path requires `npm install`. Both editors’ defaults blunt this (VS Code blocks
+automatic tasks in an untrusted workspace; Claude Code applies workspace trust to
+repository-supplied project settings), which is exactly why those defaults are worth
+asserting explicitly rather than inheriting.
+The poisoned files were still present on `main` at the reporting cutoff, so a fresh
+clone alone did not clear them.
+
+**Credential targets and exfiltration**
+
+AWS instance metadata (`169.254.169.254/latest/`) and credential chains across regions,
+GCP service-account keys, Azure client secrets, Vault tokens
+(`/home/runner/.vault-token`, `/run/secrets/VAULT_TOKEN`), Kubernetes service-account
+tokens (`/var/run/secrets/kubernetes.io/serviceaccount/token`), npm tokens via
+`registry.npmjs.org/-/whoami` and `/-/npm/v1/tokens`, GitHub Actions OIDC and org/repo
+secrets, plus TruffleHog-style regex sweeps for bearer tokens and private-key blocks.
+Exfiltration goes out over two channels: a `GitHubSender` that creates repos via
+`POST /user/repos` and commits via the GraphQL `createCommitOnBranch` mutation, and a
+`DomainSender` that resolves destinations via DNS with health checks.
+Payloads are AES-256-GCM encrypted (12-byte IV, 16-byte tag) under an embedded operator
+public key.
+
+**Propagation and provenance**
+
+The worm enumerates the victim’s packages via `registry.npmjs.org/-/npm/v1/search`,
+downloads each tarball, injects the same preinstall hook, recomputes integrity and
+shasum fields, bumps the version, and publishes through
+`npm OIDC token/exchange/package/`. It then generates DSSE attestation envelopes with
+Fulcio certificates and Rekor transparency-log entries, so republished packages carry
+provenance that verifies.
+
+**File-level IOCs**
+
+- `setup.mjs` (npm tarball variant), SHA-256
+  `54dc7ea54a1317cca0e890a2770630cf7fa6c97813e0cb9d2caa93012b350668`
+- `setup.mjs` (`.claude` / `.vscode` variant), SHA-256
+  `fd3ca4007b225fdf8de7af4345a19179d5efa8c4bb9205f88cda806e5684b1eb`
+- `Math_Symbol.js` / `math_init.js` (identical), SHA-256
+  `9fc2570b7cef51c1b8df116d144d11ff4096357be7d2c4c6367cfc2509cf1bcc`
+- Temp directories matching `bun-dl-*`; logs at `/tmp/gh-token-monitor.{out,err}.log`
+
+**What actually would have stopped it**
+
+The 14-day cool-off, and little else in the install-side toolkit.
+`ignore-scripts` and npm 12’s default-off `allowScripts` block the preinstall path but
+not the `.claude`/`.vscode` path.
+Provenance verification passes.
+A frozen lockfile helps only if it predates the campaign.
+
 * * *
 
 # Part 3: Best Practices For Hardening
@@ -284,7 +389,7 @@ LOWEST PRIORITY   →  npm builtin defaults
   work. Dashes in the config name become underscores in the variable name
   (`minimum-release-age` becomes `NPM_CONFIG_MINIMUM_RELEASE_AGE`).
 
-### pnpm (Workspace YAML + Limited `.npmrc`)
+### pnpm (Workspace YAML and Limited `.npmrc`)
 
 pnpm does **not** read most settings from `.npmrc`. As documented at `pnpm.io/settings`,
 pnpm reads only auth and registry settings from `.npmrc`. All other settings
@@ -360,7 +465,7 @@ days old. pnpm checks each candidate version individually.
   config” but still function.
   Use `before=` for npm versions below 11.10.
 
-### Release-Age Controls: Name And Unit Cheat Sheet
+### Release-Age Controls: Name and Unit Cheat Sheet
 
 The names and units differ across tools and across versions.
 Pick the row for your tool and version, then set exactly one release-age control.
@@ -456,7 +561,7 @@ Source it from every shell init that matters.
 The same file works on macOS, Linux, and WSL.
 
 ```sh
-# ~/.npm-hardening.sh — POSIX sh; works in bash, zsh, dash, sh
+# ~/.npm-hardening.sh—POSIX sh; works in bash, zsh, dash, sh
 
 # Rolling 14-day quarantine, recomputed at shell start.
 # BSD date (macOS) primary; GNU date (Linux/WSL) fallback.
@@ -800,7 +905,7 @@ Use multiple feeds. Each has gaps; the union catches everything in practice.
 | **Unit 42 (Palo Alto)** | “Monitoring npm supply chain attacks” living doc, kept current | `unit42.paloaltonetworks.com/monitoring-npm-supply-chain-attacks` |
 | **CISA Alerts** | US-CERT advisories for major incidents (Axios and Shai-Hulud got CISA writeups) | `cisa.gov/news-events/alerts` |
 
-### Tier 3: Commercial (For SLAs Or Private-Package Coverage)
+### Tier 3: Commercial (For SLAs or Private-Package Coverage)
 
 - **Snyk Vulnerability DB**: comprehensive; paid above small-team tier.
 - **Phylum**: built around supply-chain-attack use case specifically.
@@ -852,7 +957,7 @@ osv-scanner --offline --download-offline-databases ./osvdb
 Supports `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, plus 16+ other ecosystems.
 Output JSON with `--format json`.
 
-### `npm audit` And `pnpm audit`
+### `npm audit` and `pnpm audit`
 
 Backed by GHSA. Run after every lockfile change.
 
@@ -894,7 +999,7 @@ npq install some-package
 
 Wraps `npm install` with basic supply-chain checks first.
 
-### Manual Lockfile Grep Against A Known-Bad List
+### Manual Lockfile Grep Against a Known-Bad List
 
 When a brand-new IOC list drops and you do not want to wait for `osv-scanner` to ingest
 it, grep directly:
@@ -929,7 +1034,7 @@ done
 - [ ] Rotate any plaintext `_authToken` in `~/.npmrc` to a read-only token
   (`npm token create --read-only`).
 
-### Per-Project (When Adding Or Removing Dependencies)
+### Per-Project (When Adding or Removing Dependencies)
 
 - [ ] To intentionally install a fresh package, prefer a **surgical** install that does
   not relax the global gate: verify first
@@ -949,7 +1054,7 @@ done
 - [ ] Refresh the rolling `NPM_CONFIG_BEFORE` (happens automatically on shell restart;
   long-lived tmux sessions need explicit reload).
 
-### When A New Named Attack Drops
+### When a New Named Attack Drops
 
 - [ ] Run the grep recipe against every lockfile in your workspace with that attack’s
   IOC list.
@@ -1049,7 +1154,7 @@ Docs”.
 - [Bitwarden: Statement on the Checkmarx supply-chain incident (@bitwarden/cli, Apr 22 2026)](https://community.bitwarden.com/t/bitwarden-statement-on-checkmarx-supply-chain-incident/96127)
 - [The Hacker News: Trivy compromise triggers self-spreading CanisterWorm across npm](https://thehackernews.com/2026/03/trivy-supply-chain-attack-triggers-self.html)
 
-### Tools And Feeds
+### Tools and Feeds
 
 - [OSV.dev, Open Source Vulnerabilities database](https://osv.dev/)
 - [OSV-Scanner on GitHub](https://github.com/google/osv-scanner)
@@ -1074,6 +1179,6 @@ Docs”.
 - [Mondoo: npm Supply Chain Security in 2026 (per-manager comparison)](https://mondoo.com/blog/npm-supply-chain-security-package-manager-defenses-2026)
 - [Aikido Endpoint launch (Apr 2026)](https://www.aikido.dev/blog/top-software-supply-chain-security-tools)
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

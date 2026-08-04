@@ -11,7 +11,7 @@ Full threat model, incident timeline, and scanning-tool comparisons in
 
 ## Hardening (Ten-Minute Setup)
 
-### Step 0: Keep The Go Toolchain Current
+### Step 0: Keep the Go Toolchain Current
 
 Use Go 1.25.10 or 1.26.3 (or later) to pick up the fix for **CVE-2026-42501**, a
 malicious module proxy that could bypass the public checksum database (`sum.golang.org`)
@@ -35,7 +35,7 @@ release.
 Full background and the upstream issue: see
 [research-go-supply-chain-hardening.md → CVE-2026-42501](../research/research-go-supply-chain-hardening.md#part-1-background).
 
-### Step 1: Create The Hardening Script
+### Step 1: Create the Hardening Script
 
 Create `~/.go-hardening.sh` with the protection env vars:
 
@@ -111,7 +111,7 @@ go mod tidy -mod=mod
 GOFLAGS="" go get -u github.com/some/module@v1.2.3
 ```
 
-#### Verify A Specific Version Before Adding It
+#### Verify a Specific Version Before Adding It
 
 Go’s integrity story is the checksum database, not a release-age gate, so the surgical
 exception is to pin one reviewed version and confirm it verifies.
@@ -244,7 +244,7 @@ consistent regardless of which registry was hit.
    Record raw findings, analysis, every action with timestamps, and any pending
    follow-ups. Redact live credentials per the template’s Redaction Rules.
 
-## Keeping A Supply Chain Audit Log
+## Keeping a Supply Chain Audit Log
 
 Follow the same audit-log discipline described in
 [hardening-npm.md](hardening-npm.md#keeping-a-supply-chain-audit-log).
@@ -316,6 +316,6 @@ For early warning of new named attacks:
 - [StepSecurity Blog](https://www.stepsecurity.io/blog)
 - [Datadog Security Labs](https://securitylabs.datadoghq.com/)
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

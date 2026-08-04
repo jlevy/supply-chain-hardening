@@ -122,7 +122,7 @@ shows that account-takeover attacks are being attempted against Rust maintainers
 The hardening steps in Part 3 are straightforward and worth applying, even though the
 threat volume is far lower than in the npm ecosystem.
 
-## What The Attacks Have In Common
+## What the Attacks Have In Common
 
 Across the confirmed crates.io incidents, the pattern is narrower than in npm:
 
@@ -157,8 +157,8 @@ campaigns (Shai-Hulud, Mini Shai-Hulud, TeamPCP) did not propagate to crates.io.
 The most recent crates.io incident remains `mysten-metrics@9.0.3` (build.rs
 exfiltration, April 2026). The dominant crates.io vector stays runtime/build-time
 payloads in typosquats (`build.rs`, proc-macros, `#[ctor]`), which a release-age delay
-does not address; the `--locked` + `cargo audit`/`deny`/`vet` controls in Part 3 remain
-the right defense.
+does not address; the `--locked` and `cargo audit`/`deny`/`vet` controls in Part 3
+remain the right defense.
 
 ## Incident Summaries
 
@@ -180,7 +180,7 @@ Sources:
 [GHSA-7pwq-f4pq-78gm](https://github.com/advisories/GHSA-7pwq-f4pq-78gm);
 [Sonatype](https://www.sonatype.com/blog/this-week-in-malware-may-13th-edition).
 
-### `faster_log` And `async_println` Crypto-Key Theft (2025-09)
+### `faster_log` and `async_println` Crypto-Key Theft (2025-09)
 
 Typosquat of the legitimate `fast_log` crate.
 Published 2025-05-25 by users `rustguruman` and `dumbnbased`, with 8,424 combined
@@ -208,7 +208,7 @@ Sources:
 [Socket](https://socket.dev/blog/crates-io-users-targeted-by-phishing-emails);
 [Help Net Security, 2025-09-15](https://www.helpnetsecurity.com/2025/09/15/phishing-campaign-targets-rust-developers/).
 
-### `evm-units` And `uniswap-utils` Web3 Targeting (2025-12)
+### `evm-units` and `uniswap-utils` Web3 Targeting (2025-12)
 
 Published by user `ablerust` in April 2025, removed December 2025. `evm-units` had over
 7,000 downloads; `uniswap-utils` had 14 versions and over 7,400 downloads.
@@ -222,7 +222,7 @@ Sources:
 [Socket](https://socket.dev/blog/malicious-rust-crate-evm-units-serves-cross-platform-payloads);
 [The Hacker News, 2025-12-04](https://thehackernews.com/2025/12/malicious-rust-crate-delivers-os.html).
 
-### `finch-rst` And `sha-rst` Credential Theft (2025-12)
+### `finch-rst` and `sha-rst` Credential Theft (2025-12)
 
 Typosquats of the `finch` and `finch_cli` crates.
 `sha-rst` was a dependency of `finch_cli_rust` and `finch-rst`, containing the
@@ -398,7 +398,7 @@ sources. Useful if you also scan npm, PyPI, or Go lockfiles in the same CI pipel
 osv-scanner scan -L Cargo.lock
 ```
 
-## Setup: macOS, Linux, And Windows
+## Setup: macOS, Linux, and Windows
 
 Cargo is cross-platform and the hardening commands are identical across macOS, Linux,
 and Windows. The only variation is shell init for environment-level configuration.
@@ -511,7 +511,7 @@ Security considerations:
 
 These are different attack surfaces:
 
-- **Project dependencies** (`Cargo.toml` + `Cargo.lock`): pinned by the lockfile.
+- **Project dependencies** (`Cargo.toml` and `Cargo.lock`): pinned by the lockfile.
   Pass `--locked` and the resolved tree does not change.
 - **`cargo install`**: by default, ignores the packaged `Cargo.lock` and re-resolves
   from scratch. A malicious version published since the tool author last updated could be
@@ -553,7 +553,7 @@ These are different attack surfaces:
 - [ ] Run `cargo audit` in each workspace; investigate any hits.
 - [ ] Optionally install `cargo-vet` or `cargo-crev` for human-review attestations.
 
-### Per-Project (When Adding Or Removing Dependencies)
+### Per-Project (When Adding or Removing Dependencies)
 
 - [ ] After adding a crate, review whether it has a `build.rs` or is a `proc-macro`.
   Check what it does.
@@ -566,7 +566,7 @@ These are different attack surfaces:
 - [ ] Skim RustSec advisories and Rust Blog for new malicious-crate announcements.
 - [ ] Run `cargo audit` in each workspace to pick up newly published advisories.
 
-### When A New Named Attack Drops
+### When a New Named Attack Drops
 
 - [ ] Grep `Cargo.lock` for the affected crate names.
 - [ ] If you have hits: revoke every credential reachable from any machine that compiled
@@ -620,7 +620,7 @@ Docs”.
 - [ReversingLabs: 2026 Software Supply Chain Security Report](https://www.reversinglabs.com/sscs-report)
 - [Snyk: The rising trend of malicious packages in open source ecosystems (2025)](https://snyk.io/blog/malicious-packages-open-source-ecosystems/)
 
-### Tools And Feeds
+### Tools and Feeds
 
 - [RustSec Advisory Database](https://rustsec.org/)
 - [cargo-audit on crates.io](https://crates.io/crates/cargo-audit)
@@ -631,6 +631,6 @@ Docs”.
 - [OSV-Scanner on GitHub](https://github.com/google/osv-scanner)
 - [Cargo Registries documentation](https://doc.rust-lang.org/cargo/reference/registries.html)
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

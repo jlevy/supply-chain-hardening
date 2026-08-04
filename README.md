@@ -4,7 +4,7 @@
 curated watch list of recent compromises across npm, PyPI, crates.io, and Go modules.
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance\
-**Last updated:** 2026-05-23
+**Last updated:** 2026-08-04
 
 ## Quick Start
 
@@ -25,11 +25,15 @@ against the [Authoritative Sources](#authoritative-sources).
   job behind a GitHub Environment with required reviewers.
 - **Agent working in an untrusted repo:** follow
   [`guidelines/untrusted-repo-first-run.md`](guidelines/untrusted-repo-first-run.md)
-  before any install / build / test / run command.
+  before any install / build / test / run command, and
+  [`guidelines/hardening-agent-workspaces.md`](guidelines/hardening-agent-workspaces.md)
+  before *opening* it.
+- **Anyone running an AI coding agent or opening third-party repos in an editor:** apply
+  [`guidelines/hardening-agent-workspaces.md`](guidelines/hardening-agent-workspaces.md).
 - **Machine with publish tokens or production access:** enter Strict mode
   ([`guidelines/strict-mode.md`](guidelines/strict-mode.md)).
 
-### Harden A Single Ecosystem
+### Harden a Single Ecosystem
 
 Pick the playbook for the ecosystem you use.
 Each is a copy-pasteable Ten-Minute Setup.
@@ -41,6 +45,7 @@ Each is a copy-pasteable Ten-Minute Setup.
 | **crates.io / Rust** | [guidelines/hardening-crates.md](guidelines/hardening-crates.md) |
 | **Go modules** | [guidelines/hardening-go.md](guidelines/hardening-go.md) |
 | **CI/CD and publish pipeline** (cross-ecosystem) | [guidelines/hardening-ci-cd.md](guidelines/hardening-ci-cd.md) |
+| **AI agent and editor workspaces** (cross-ecosystem) | [guidelines/hardening-agent-workspaces.md](guidelines/hardening-agent-workspaces.md) |
 
 The four per-ecosystem playbooks harden the **install** side.
 If you publish packages, or your repo releases via GitHub Actions, also apply the
@@ -48,14 +53,21 @@ cross-ecosystem [CI/CD playbook](guidelines/hardening-ci-cd.md): most 2026 incid
 (TanStack, @antv, Megalodon, `durabletask`) compromised the publish pipeline, not a
 consumer.
 
+If you use an AI coding agent or open third-party repos in an editor, also apply the
+[agent-workspace playbook](guidelines/hardening-agent-workspaces.md).
+From April 2026 the attack moved to committed repository config that runs when a folder
+is **opened**: `.claude/settings.json` `SessionStart` hooks, `.vscode/tasks.json`
+`folderOpen` tasks, and agent instruction files carrying hidden text.
+No install happens, so no install-side control in this repo applies.
+
 **Ecosystems not yet covered:** RubyGems / Bundler and Homebrew have no copy-pasteable
-playbook here yet. The same methodology applies — commit `Gemfile.lock` and install with
+playbook here yet. The same methodology applies—commit `Gemfile.lock` and install with
 `bundle install --frozen`; use a committed `Brewfile` with `brew bundle`, and disable
 Homebrew auto-update (`HOMEBREW_NO_AUTO_UPDATE=1`) for reproducible installs; verify
-before upgrading — but neither has a native release-age gate, so treat them like Cargo
-and Go (pin, commit the lockfile, review before updating).
+before upgrading—but neither has a native release-age gate, so treat them like Cargo and
+Go (pin, commit the lockfile, review before updating).
 Adding a full playbook follows
-[self-update-instructions.md](self-update-instructions.md) → “Adding A New Ecosystem”.
+[self-update-instructions.md](self-update-instructions.md) → “Adding a New Ecosystem”.
 
 ### Harden All Ecosystems
 
@@ -79,13 +91,20 @@ For an agent or human walking through every ecosystem on a workstation, in order
    `uv run scripts/audit_npm.py`. The script reports `[MALICIOUS]` separately from
    ordinary CVEs and has zero third-party dependencies; see
    [scripts/README.md](scripts/README.md).
-5. **If any hit lands,** follow the “If You Have Hits” section in the relevant playbook
+5. **Scan for open-time and load-time persistence,** which no lockfile scan will find:
+   `uv run scripts/audit_workspace.py --scan-site-packages .` in each repo you have
+   opened. It reports planted agent and editor autostart config, hidden Unicode in agent
+   instruction files, `.pth` interpreter hooks, and known host persistence.
+6. **If any hit lands,** follow the “If You Have Hits” section in the relevant playbook
    for credential rotation, downgrade, and post-incident steps.
+   If the hit is host persistence, remove it **before** rotating credentials: the
+   2026-08-04 keyv worm’s watcher runs an operator-supplied handler when a stolen token
+   stops working.
 
 The long-form companions live in [`research/`](research/): threat model, attack
 timeline, per-shell setup detail, and severity assessment per ecosystem.
 
-### Drop A Reminder Into Your Own Codebase
+### Drop a Reminder Into Your Own Codebase
 
 [`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md) is a self-contained, portable
 version of the install rules (no newer than 14 days, no unthinking installs, audit after
@@ -104,9 +123,11 @@ When the user asks you to harden, audit, or assess a package-manager supply chai
 | “Harden my Rust setup” | Apply [guidelines/hardening-crates.md](guidelines/hardening-crates.md). Verify, log. |
 | “Harden my Go setup” | Apply [guidelines/hardening-go.md](guidelines/hardening-go.md). Verify, log. |
 | “Harden my CI / release pipeline” or “We publish packages” | Apply [guidelines/hardening-ci-cd.md](guidelines/hardening-ci-cd.md): read-only PR caches, SHA-pinned actions, runner egress block, OIDC/staged publishing, provenance monitoring. |
+| “Harden my AI coding agent / editor” | Apply [guidelines/hardening-agent-workspaces.md](guidelines/hardening-agent-workspaces.md): workspace trust, hook-loading policy, MCP approval, pre-open triage. Verify, log. |
+| “Is it safe to open this repo?” | Run `uv run scripts/audit_workspace.py ./REPO` **before** opening it in an editor or pointing an agent at it. Cloning is safe; opening is the risky step. |
 | “Harden everything on this machine” | Walk [Harden All Ecosystems](#harden-all-ecosystems) end to end. One audit-log entry per ecosystem. |
 | “I just installed X. Am I compromised?” | Start at [compromised-packages.md](compromised-packages.md). For npm, run `uv run scripts/audit_npm.py --packages <pkg@ver>`. For other ecosystems, `osv-scanner` per the playbook. Log findings. |
-| “Add a new ecosystem (RubyGems, NuGet, …)” | Follow [self-update-instructions.md](self-update-instructions.md) → “Adding A New Ecosystem”. Cite multiple [authoritative sources](#authoritative-sources). |
+| “Add a new ecosystem (RubyGems, NuGet, …)” | Follow [self-update-instructions.md](self-update-instructions.md) → “Adding a New Ecosystem”. Cite multiple [authoritative sources](#authoritative-sources). |
 | “Update the watch list with a new incident” | Follow [self-update-instructions.md](self-update-instructions.md) → “Updating `compromised-packages.md`”. Verify with at least two [Incident Reporting Feeds](#incident-reporting-feeds-free-public-two-source-verification). |
 
 [`AGENTS.md`](AGENTS.md) carries the same table plus a Safety Rule For Agents block, for
@@ -120,7 +141,7 @@ IDEs and agents that auto-load that filename.
 > installing them. Have your agent cross-check every recipe in this repo against the
 > [Authoritative Sources](#authoritative-sources).
 
-## What This Repo Is (And Is Not)
+## What This Repo Is (and Is Not)
 
 **This repo is** a methodology resource for agents and humans:
 
@@ -138,8 +159,11 @@ IDEs and agents that auto-load that filename.
   first run of any third-party code.
 - A **curated watch list** at [`compromised-packages.md`](compromised-packages.md) for
   spot-checking installed packages and recognising attack patterns by name.
-- A **zero-dependency audit script** at [`scripts/audit_npm.py`](scripts/audit_npm.py)
-  and an audit-log template at
+- **Zero-dependency audit scripts:** [`scripts/audit_npm.py`](scripts/audit_npm.py)
+  checks installed npm trees against OSV, and
+  [`scripts/audit_workspace.py`](scripts/audit_workspace.py) checks a repo and host for
+  open-time and load-time persistence.
+  Plus an audit-log template at
   [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md).
 - A **self-update procedure** at
   [`self-update-instructions.md`](self-update-instructions.md) so any human or agent
@@ -164,13 +188,15 @@ elsewhere for L4. Everything in the repo maps to one of these layers.
 | **L4** Org registry / proxy | Internal mirror with quarantine and delay policy (Artifactory, Nexus, Verdaccio, devpi) | **Out of scope for hands-on guidance.** Strongest team-level control; implementations vary by org. Use a controlled `GOPROXY` and crates.io vendoring for Go and Rust. |
 | **L5** Untrusted-repo sandbox | Container or namespace-isolated execution for the first run of any third-party repo | [`guidelines/untrusted-repo-first-run.md`](guidelines/untrusted-repo-first-run.md) |
 | **L6** Incident response | Per-incident credential rotation, persistence checks, downgrade, audit-log entry | “If You Have Hits” sections in each playbook; [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md) |
+| **L7** Agent and editor workspace | Workspace-trust settings, hook-loading policy, and a pre-open review of repository-supplied agent config | [`guidelines/hardening-agent-workspaces.md`](guidelines/hardening-agent-workspaces.md); [`scripts/audit_workspace.py`](scripts/audit_workspace.py) |
 
 How to read the stack:
 
 - **L1 alone** is enough for personal workstations and small teams against the
   fast-yanked-incident class of attack.
-- **L1 + L2 + L3** is the minimum for any shared codebase: L1 protects the individual
-  developer, L2’s committed lockfile + L3’s CI gate close the gap when a peer skips L1.
+- **L1, L2, and L3 together** are the minimum for any shared codebase: L1 protects the
+  individual developer, and L2’s committed lockfile plus L3’s CI gate close the gap when
+  a peer skips L1.
 - **L4** is the strongest team-level control because it is the only layer that enforces
   policy across every developer, agent, CI job, and tool that resolves packages.
   If you can stand up a delayed internal mirror, do so.
@@ -180,13 +206,25 @@ How to read the stack:
   code with ambient credentials.
 - **L6** is the difference between “a malicious package landed on a developer machine”
   and “a malicious package compromised production.”
-  Treat the audit log as the canonical record; do not rely on memory.
+  Treat the audit log as the record; do not rely on memory.
+- **L7** is the newest layer and the only one that is not about packages at all.
+  Its controls sit in *your* user or managed settings, because the repository controls
+  everything inside itself.
+
+The layers assume the payload runs at install time.
+Three 2026 campaign families broke that assumption, and each needs a different layer:
+
+| Trigger | Runs when | Example | Layer that helps |
+| --- | --- | --- | --- |
+| Install-time | `npm install`, `pip install`, `cargo build` | keyv, Miasma, Shai-Hulud | L1-L4 |
+| Load-time | `require()`, `import`, or any interpreter start | node-ipc, Hades `.pth` | L1 cool-off and L5 sandbox only |
+| Open-time | A developer or agent opens the repo | Miasma/Azure, TrapDoor `CLAUDE.md` | L5 and L7 only |
 
 [`guidelines/strict-mode.md`](guidelines/strict-mode.md) documents the Strict and
 Emergency-Exception modes that sit on top of the Balanced default; agents and high-risk
 environments should consult that file before installing anything.
 
-## Why The Hardening Pattern Is Stable Even When The Incident List Changes
+## Why the Hardening Pattern Is Stable Even When the Incident List Changes
 
 The dominant pattern in the 2025-2026 wave is fast-yanked named incidents: malicious
 package versions live for minutes to hours before researchers detect them and the
@@ -199,10 +237,10 @@ advisories, and require explicit human review for dependency updates.
 
 | Ecosystem | Native release-age gating | Primary protection |
 | --- | --- | --- |
-| npm / pnpm | yes (`NPM_CONFIG_BEFORE`, `MINIMUM_RELEASE_AGE` on pnpm 10.16+, `MIN_RELEASE_AGE` on npm 11.10+) | release-age delay + disabled install scripts + frozen lockfile |
-| PyPI (uv, pip 26.1+, poetry 2.4+, pdm) | yes (`UV_EXCLUDE_NEWER`, `PIP_UPLOADED_PRIOR_TO`, `solver.min-release-age`, `--exclude-newer`) | release-age delay + refuse sdist builds + frozen lockfile with hashes |
-| Cargo (crates.io) | no native release-age control | committed `Cargo.lock` + `--locked` + `cargo audit`/`deny`/`vet` |
-| Go modules | no native release-age control | committed `go.sum` + `go mod verify` + `govulncheck` + readonly module mode |
+| npm / pnpm | yes (`NPM_CONFIG_BEFORE`, `MINIMUM_RELEASE_AGE` on pnpm 10.16+, `MIN_RELEASE_AGE` on npm 11.10+) | release-age delay, disabled install scripts, and a frozen lockfile. npm 12 (2026-07-08) blocks dependency lifecycle scripts by default via `allowScripts`, and blocks git and remote-URL dependencies unless `--allow-git` / `--allow-remote` is passed |
+| PyPI (uv, pip 26.1+, poetry 2.4+, pdm) | yes (`UV_EXCLUDE_NEWER`, `PIP_UPLOADED_PRIOR_TO`, `solver.min-release-age`, `--exclude-newer`) | release-age delay, refusal of sdist builds, and a frozen lockfile with hashes |
+| Cargo (crates.io) | no native release-age control | committed `Cargo.lock`, `--locked`, and `cargo audit`/`deny`/`vet` |
+| Go modules | no native release-age control | committed `go.sum`, `go mod verify`, `govulncheck`, and readonly module mode |
 
 For Cargo and Go, “cool-off” can still be implemented through Renovate/Dependabot
 policy, internal mirrors, or update wrappers, but it is not a flag the toolchain
@@ -210,18 +248,37 @@ exposes. The playbooks translate the per-ecosystem pattern into copy-pasteable c
 the methodology is what the repo is really about.
 
 **What this neutralises:** the fast-yanked named incidents above.
-**What it does not neutralise on its own:** long-lived compromises that survive past the
-cool-off window (BoltDB and `shopsprint/decimal` cached in the Go module proxy for ~3
-years; ctx ATO published for ~10 days), lockfiles that already captured a malicious
-version before the control was active, runtime payloads in wheels or proc-macros (and
-`require()`-time payloads like node-ipc) that execute on import or build rather than at
-install time, and **publish-pipeline compromises** where the malicious version ships
-from the legitimate maintainer’s own CI, sometimes carrying valid (forged) provenance,
-as in the May 2026 @antv worm.
+
+**What it does not neutralise on its own:**
+
+- **Long-lived compromises that outlast the window.** BoltDB and `shopsprint/decimal`
+  sat in the Go module proxy for around three years; the `ctx` takeover was live ~10
+  days.
+- **Lockfiles that already captured a malicious version** before the control was active.
+- **Load-time payloads.** Code that runs at `require()` (node-ipc), at `import`
+  (TrapDoor’s PyPI packages), or at *every interpreter start* (the June 2026 Hades
+  `.pth` wheels). A wheel-only or no-build policy does nothing here, because nothing is
+  built and, for `.pth`, nothing is even imported.
+- **Open-time payloads.** Committed `.claude/settings.json` hooks, `.vscode/tasks.json`
+  `folderOpen` tasks, and agent instruction files carrying zero-width Unicode.
+  These arrive through a git repository rather than a registry, so there is no version
+  to age and no lockfile entry to review.
+  See the [agent-workspace playbook](guidelines/hardening-agent-workspaces.md).
+- **Publish-pipeline compromises,** where the malicious version ships from the
+  legitimate maintainer’s own CI. By mid-2026 these routinely carry provenance that
+  verifies: @antv forged Sigstore attestations at runtime, and Miasma, IronWorm, and the
+  keyv worm republished through stolen OIDC credentials.
+  A green badge attests to *which pipeline* built a package, not that the pipeline was
+  clean.
+- **Bring-your-own-runtime payloads.** The keyv and Hades loaders download a standalone
+  Bun binary, so “we don’t have Bun installed” is not a control and Node-shaped
+  detection misses them.
+
 Those require additional controls: lockfile review, typo-resistance checks, the
-per-ecosystem build-time controls in the playbooks, and the publish-side controls in the
+per-ecosystem build-time controls in the playbooks, the publish-side controls in the
 [CI/CD playbook](guidelines/hardening-ci-cd.md) (OIDC trusted publishing, staged
-publishing, runner hardening, provenance monitoring).
+publishing, runner hardening, provenance monitoring), and the workspace controls in the
+[agent-workspace playbook](guidelines/hardening-agent-workspaces.md).
 
 ## The Default Policy: A 14-Day Cool-Off
 
@@ -237,9 +294,14 @@ version-specific recipes and verification):
 | npm 11.10+ | `NPM_CONFIG_MIN_RELEASE_AGE=14` (days) |
 | pnpm 10.16-10.x | `NPM_CONFIG_MINIMUM_RELEASE_AGE=20160` (minutes) |
 | pnpm 11+ | `minimumReleaseAge: 20160` in `pnpm-workspace.yaml` (pnpm 11 ignores `NPM_CONFIG_*`) |
-| uv | `UV_EXCLUDE_NEWER="14 days"` |
+| uv | `UV_EXCLUDE_NEWER="14 days"`; exempt one package with `exclude-newer-package` |
 | pip 26.1+ | `PIP_UPLOADED_PRIOR_TO="P14D"` |
-| Cargo / Go | no native gate: committed lockfile + `--locked` / `-mod=readonly` + human review before re-resolution |
+| Cargo / Go | no native gate: committed lockfile, `--locked` / `-mod=readonly`, and human review before re-resolution |
+
+The cool-off applies to your **toolchain** as well as your dependencies.
+It is also the only control in this table that does anything about load-time payloads
+such as the Hades `.pth` wheels, since those execute without an install script, a source
+build, or an import.
 
 **The general principle.** A cool-off works because the registry and researchers detect
 and yank malicious versions while legitimate versions keep accruing age.
@@ -298,8 +360,8 @@ published yesterday that fixes a vulnerability you are exposed to), take the exc
 - Pin the exact `package@version`, not a range.
   Verify it against the [authoritative sources](#authoritative-sources): publisher,
   publish time, and integrity hash.
-- Install it **surgically** — a direct tarball / wheel URL or a pinned git ref — rather
-  than relaxing the global cool-off for the whole dependency graph.
+- Install it **surgically**—a direct tarball / wheel URL or a pinned git ref—rather than
+  relaxing the global cool-off for the whole dependency graph.
   Each playbook’s “When You Intentionally Need A Fresh Package” step has the
   verify-then-install commands
   ([npm](guidelines/hardening-npm.md#step-4-when-you-intentionally-need-a-fresh-package),
@@ -316,7 +378,7 @@ is that we do not trust ourselves to eyeball which fresh versions are safe.
 signs off. See [`guidelines/strict-mode.md`](guidelines/strict-mode.md) for the full
 Emergency-Exception record format.
 
-### Update Discipline: The Safest Update Is The One You Skip
+### Update Discipline: The Safest Update Is the One You Skip
 
 A cool-off decides *when* to take an update.
 The prior question is *whether* to update at all.
@@ -358,12 +420,14 @@ At a glance:
 | --- | --- | --- |
 | [`compromised-packages.md`](compromised-packages.md) | A notable new supply-chain incident is verified by at least two independent Tier-2 sources, or by CISA | Weeks-to-months |
 | Hardening playbooks ([npm](guidelines/hardening-npm.md), [PyPI](guidelines/hardening-pypi.md), [Rust](guidelines/hardening-crates.md), [Go](guidelines/hardening-go.md)) | A package manager ships a relevant new control, or an existing flag or env-var name changes | Months-to-years |
+| [`guidelines/hardening-agent-workspaces.md`](guidelines/hardening-agent-workspaces.md) | An agent or editor changes its trust model, hook mechanism, or config paths | Months |
 | Research docs (in [`research/`](research/)) | An ecosystem-specific mechanism or control set changes, or a new incident merits a dedicated mechanism deep-dive | Months-to-years |
 | [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md) | The audit-log entry format evolves | Rarely |
 
-Every doc follows `std-doc-guidelines.md` (author: jlevy), flagged by the footer at the
-bottom of each file.
-Style for additions: Title Case headings, no spaced em dashes, concrete examples over
+Every doc follows `common-doc-guidelines.md` (author: jlevy, upstream
+[practical-prose](https://github.com/jlevy/practical-prose)), flagged by the footer at
+the bottom of each file and readable with `tbd guidelines common-doc-guidelines`. Style
+for additions: Title Case headings, no spaced em dashes, concrete examples over
 generalities, no “talking about talking”, cite primary sources.
 
 ## Contributing
@@ -420,14 +484,17 @@ adding it to [`compromised-packages.md`](compromised-packages.md).
   Palo Alto’s tracking of the ongoing wave.
 - [Phylum Blog](https://www.phylum.io/blog): package-registry-attack focus.
 - [JFrog Security Research](https://jfrog.com/blog/category/security-research/): npm and
-  PyPI coverage.
+  PyPI coverage; first to publish the IronWorm teardown.
+- [SafeDep](https://safedep.io/): registry-backed campaign counts and per-campaign
+  tracking pages.
+- [Wiz Threat Research](https://www.wiz.io/blog): cloud-credential impact analysis.
 - [CISA Alerts](https://www.cisa.gov/news-events/cybersecurity-advisories): US-CERT
   advisories for major incidents.
 - Maintainer postmortems (e.g.
   [TanStack postmortem](https://tanstack.com/blog/npm-supply-chain-compromise-postmortem)):
   primary sources when available.
 
-### Commercial (Paid Or Mostly-Paid)
+### Commercial (Paid or Mostly-Paid)
 
 [Snyk Vulnerability DB](https://snyk.io/vuln/),
 [Sonatype OSS Index](https://ossindex.sonatype.org/),
@@ -437,6 +504,6 @@ adding it to [`compromised-packages.md`](compromised-packages.md).
 
 [MIT](LICENSE).
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->
