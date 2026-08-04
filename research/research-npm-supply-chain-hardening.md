@@ -1081,10 +1081,26 @@ exposure window. For a genuinely urgent CVE, take the documented
 version, and log it.
 `npm-check-updates --cooldown 14` enforces the same window at upgrade-decision time.
 
-**How does this interact with Renovate or Dependabot?** Both have native equivalents.
-Renovate supports `minimumReleaseAge: "14 days"` in `renovate.json`. Dependabot does not
-yet (as of 2026-05); track this.
-Renovate’s filter is independent of pnpm’s; both should be on.
+**How does this interact with Renovate or Dependabot?** Both have native equivalents,
+and both operate at a different layer than the package manager.
+
+- **Renovate:** `minimumReleaseAge: "14 days"` in `renovate.json`. No default; opt in.
+  `internalChecksFilter` defaults to `strict`, so a branch is not created until the
+  check passes.
+- **Dependabot:** the `cooldown` block in `.github/dependabot.yml`, with `default-days`
+  plus optional `semver-major-days` / `semver-minor-days` / `semver-patch-days` and
+  `include` / `exclude` lists (150 entries each).
+  **Since 2026-07-14 Dependabot applies a 3-day cooldown by default with no
+  configuration.** It covers version updates only; security updates still open
+  immediately, which is the behaviour you want.
+
+Set a window in **both** layers.
+They are not redundant, because they gate different events: the bot gates *when a pull
+request is proposed*, and the package manager gates *what a resolution may install*. A
+bot-only cooldown is bypassed by `npm install pkg@latest` typed by hand, by a CI job
+that regenerates the lockfile, and by transitive dependencies the bot never proposes.
+Renovate’s own docs recommend configuring it in both places; for npm it also passes
+`--before=<date>` during lockfile updates to keep the two aligned.
 
 **What about a private registry or npm Enterprise?** Mirror to Verdaccio, Artifactory,
 or Nexus with a delay-replication policy (Artifactory has a “version-quarantine”

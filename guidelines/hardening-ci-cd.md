@@ -184,9 +184,21 @@ Remove the standing token.
 - **Gate the publish behind a GitHub Environment with required reviewers** and “Prevent
   self-reviews” enabled, so even an OIDC-authenticated run waits for human approval.
 
-- **If you must keep a token, make it granular** (npm removed legacy account-wide tokens
-  in November 2025): scope it to a single package, set an expiry, and keep
-  `bypass-2fa: false`.
+- **If you must keep a token, make it granular:** scope it to a single package, set an
+  expiry, and keep `bypass-2fa: false`. npm has closed off the alternatives, so treat
+  these as constraints rather than recommendations:
+
+| Change | Effective | Consequence |
+| --- | --- | --- |
+| Classic token creation disabled | 2025-11-05 | No new account-wide tokens |
+| Classic tokens permanently revoked | 2025-12-09 | Existing ones stopped working and cannot be recreated |
+| `npm login` issues a 2-hour session token | 2025-12-09 | Interactive publishing re-authenticates; a leaked session is short-lived |
+| Granular write tokens capped at 90 days | 2025-12-09 | Any long-lived publish credential in CI has an expiry you must rotate around |
+
+  A CI pipeline still carrying a `NODE_AUTH_TOKEN` is now either broken or running on a
+  granular token with at most 90 days of life.
+  Either way the migration target is OIDC trusted publishing above, not a longer-lived
+  token.
 
 - **Turn on npm staged publishing** (GA 2026-05-20; npm CLI >= 11.15.0).
   `npm stage publish` submits to a staging area from CI without 2FA; a maintainer must
@@ -195,7 +207,9 @@ Remove the standing token.
 
 References: [npm Trusted publishers](https://docs.npmjs.com/trusted-publishers/);
 [npm Staged publishing](https://docs.npmjs.com/staged-publishing/);
-[GitHub changelog, staged publishing + install-time controls](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/).
+[GitHub changelog, staged publishing and install-time controls](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/);
+[GitHub changelog, classic token creation disabled](https://github.blog/changelog/2025-11-05-npm-security-update-classic-token-creation-disabled-and-granular-token-changes/);
+[GitHub changelog, classic tokens revoked and session-based auth](https://github.blog/changelog/2025-12-09-npm-classic-tokens-revoked-session-based-auth-and-cli-token-management-now-available/).
 
 ## Control 7: Treat Provenance As a Signal, Not Proof
 

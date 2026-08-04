@@ -242,6 +242,14 @@ advisories, and require explicit human review for dependency updates.
 | Cargo (crates.io) | no native release-age control | committed `Cargo.lock`, `--locked`, and `cargo audit`/`deny`/`vet` |
 | Go modules | no native release-age control | committed `go.sum`, `go mod verify`, `govulncheck`, and readonly module mode |
 
+**Gate at two layers, not one.** A bot cool-off (Dependabot, Renovate) and a package
+manager cool-off gate different events, so neither substitutes for the other.
+The bot gates *when an update is proposed*; the package manager gates *what a resolution
+may install*. A bot-only window is bypassed by `npm install pkg@latest` typed by hand,
+by any CI job that regenerates a lockfile, and by transitive dependencies the bot never
+proposed. Renovate’s own documentation recommends configuring the window in both places.
+Set both, at the same number.
+
 For Cargo and Go, “cool-off” can still be implemented through Renovate/Dependabot
 policy, internal mirrors, or update wrappers, but it is not a flag the toolchain
 exposes. The playbooks translate the per-ecosystem pattern into copy-pasteable commands;
@@ -294,6 +302,8 @@ version-specific recipes and verification):
 | npm 11.10+ | `NPM_CONFIG_MIN_RELEASE_AGE=14` (days) |
 | pnpm 10.16-10.x | `NPM_CONFIG_MINIMUM_RELEASE_AGE=20160` (minutes) |
 | pnpm 11+ | `minimumReleaseAge: 20160` in `pnpm-workspace.yaml` (pnpm 11 ignores `NPM_CONFIG_*`) |
+| Yarn 4.10+ | `npmMinimalAgeGate: 20160` in `.yarnrc.yml` (minutes; raises the shipped 1-week default) |
+| Bun 1.3+ | `minimumReleaseAge = 1209600` in `bunfig.toml` (seconds; raises the shipped 3-day default) |
 | uv | `UV_EXCLUDE_NEWER="14 days"`; exempt one package with `exclude-newer-package` |
 | pip 26.1+ | `PIP_UPLOADED_PRIOR_TO="P14D"` |
 | Cargo / Go | no native gate: committed lockfile, `--locked` / `-mod=readonly`, and human review before re-resolution |
@@ -332,8 +342,39 @@ Why at least 14 days:
 90-day cool-off is strictly safer, and high-risk environments (machines with publish
 tokens or production access) should go higher.
 The “Live X hours” timings in [`compromised-packages.md`](compromised-packages.md) are
-the evidence base, and pnpm 11 ships a 1-day default (`minimumReleaseAge: 1440`) as the
-ecosystem’s own floor, so treat 14 days as a balanced minimum and lengthen it to taste.
+the evidence base, so treat 14 days as a balanced minimum and lengthen it to taste.
+
+### What The Ecosystems Now Ship By Default
+
+The argument for a cool-off is no longer contrarian.
+Between late 2025 and mid-2026 most of the JavaScript toolchain turned one on by
+default, and the automated update bots followed.
+Verified against vendor documentation on 2026-08-04:
+
+| Tool | Setting | Unit | Default | On by default? |
+| --- | --- | --- | --- | --- |
+| npm 11.10+ / 12 | `min-release-age` | days | `null` | no |
+| pnpm 11+ | `minimumReleaseAge` | minutes | `1440` (1 day) | **yes** |
+| Yarn 4.10+ | `npmMinimalAgeGate` | duration | `"1w"` (7 days) | **yes** |
+| Bun 1.3+ | `minimumReleaseAge` | seconds | `259200` (3 days) | **yes** |
+| uv | `exclude-newer` | date or duration | none | no |
+| pip 26.1+ | `--uploaded-prior-to` | ISO 8601 duration | none | no |
+| Dependabot | `cooldown.default-days` | days | `3` | **yes** (version updates only) |
+| Renovate | `minimumReleaseAge` | duration | none | no |
+
+Three things follow from this table:
+
+- **npm is the outlier in its own ecosystem.** pnpm, Yarn, and Bun all gate by default;
+  npm ships `null`. If you use npm, you are the one who has to opt in.
+- **Python has no default anywhere.** uv and pip both support a cool-off and neither
+  turns it on, so every Python project starts unprotected.
+- **The 14-day recommendation is now a modest step past the defaults, not a leap.**
+  Yarn’s shipped default is already 7 days, and Dependabot’s is 3.
+
+Defaults do not replace the setting.
+A default protects the tool that ships it, on the machine that has it; a committed
+policy protects the whole team, and only an explicit value tells a reader which window
+you actually chose.
 
 Scope: applies to `dependencies`, `devDependencies` (historically *more* dangerous,
 since build tooling runs with full developer privileges), `peerDependencies`, and
@@ -357,11 +398,30 @@ published yesterday that fixes a vulnerability you are exposed to), take the exc
 - State the reason in the commit message or PR description: the CVE ID (or vulnerability
   description if none yet), a link to the upstream release notes, and a `Reviewed-by:`
   sign-off line.
+
 - Pin the exact `package@version`, not a range.
   Verify it against the [authoritative sources](#authoritative-sources): publisher,
   publish time, and integrity hash.
-- Install it **surgically**—a direct tarball / wheel URL or a pinned git ref—rather than
-  relaxing the global cool-off for the whole dependency graph.
+
+- **Scope the exception to the one package** using the tool’s own per-package exclude,
+  rather than relaxing the global cool-off for the whole dependency graph.
+  Every major tool now has one, and a committed entry is reviewable in a way an unset
+  environment variable never is:
+
+| Tool | Per-package exclude |
+| --- | --- |
+| npm 12 | `min-release-age-exclude` (repeatable) |
+| pnpm | `minimumReleaseAgeExclude` (name patterns) |
+| Yarn 4.10+ | `npmPreapprovedPackages` (globs or exact locators) |
+| Bun 1.3+ | `minimumReleaseAgeExcludes` |
+| uv | `exclude-newer-package = { pkg = false }` |
+| Dependabot | `cooldown.exclude` |
+
+  Delete the entry once the version ages past the window.
+  An exclude left behind turns a one-off exception into a permanent hole.
+
+- Otherwise install it **surgically**, via a direct tarball / wheel URL or a pinned git
+  ref, rather than relaxing the gate.
   Each playbook’s “When You Intentionally Need A Fresh Package” step has the
   verify-then-install commands
   ([npm](guidelines/hardening-npm.md#step-4-when-you-intentionally-need-a-fresh-package),
@@ -369,6 +429,7 @@ published yesterday that fixes a vulnerability you are exposed to), take the exc
   [crates](guidelines/hardening-crates.md#step-6-when-you-intentionally-need-an-unvetted-crate)
   and [Go](guidelines/hardening-go.md#verify-a-specific-version-before-adding-it) verify
   before pinning instead, since they have no cool-off to relax).
+
 - Log it in `supply-chain-audit-log.md` with a follow-up to confirm the version was not
   yanked after the fact.
 

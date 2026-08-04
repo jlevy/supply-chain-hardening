@@ -121,6 +121,31 @@ export NPM_CONFIG_STRICT_DEP_BUILDS=true
 > have one. `--dangerously-allow-all-scripts` exists and is named accurately; do not use
 > it in CI.
 
+> **Yarn and Bun gate by default; set the value anyway.** Yarn 4.10+ ships
+> `npmMinimalAgeGate: "1w"` and Bun 1.3+ ships `minimumReleaseAge = 259200` (3 days), so
+> both already refuse brand-new versions out of the box.
+> Raise them to the 14-day policy and commit the file, so the window is a reviewed
+> decision rather than whatever the installed tool version happens to default to:
+> 
+> ```yaml
+> # .yarnrc.yml (Yarn 4.10+). Minutes; 20160 = 14 days.
+> npmMinimalAgeGate: 20160
+> npmPreapprovedPackages: []   # exact locators or globs exempted from the gate
+> ```
+> 
+> ```toml
+> # bunfig.toml (Bun 1.3+). Seconds; 1209600 = 14 days.
+> [install]
+> minimumReleaseAge = 1209600
+> minimumReleaseAgeExcludes = []
+> ```
+> 
+> Bun applies the gate at resolution, so a version already pinned in `bun.lock` installs
+> without its age being re-checked
+> ([oven-sh/bun#30525](https://github.com/oven-sh/bun/issues/30525)). Every tool here
+> behaves that way, which is why lockfile review stays on the list: a gate protects the
+> moment a dependency is added or moved, not a lockfile that already captured something.
+
 ### Step 2: Source From Shell Init
 
 Pick the line for every shell you use.
@@ -432,11 +457,13 @@ consistent regardless of which registry was hit.
    the malicious version was installed.
    Get this before any cleanup; you will need it for credential rotation and incident
    reporting.
+
 2. **Preserve evidence before cleanup.** Snapshot the install state:
    `cp -a $(npm root -g) /tmp/audit-snapshot-npm-global-$(date +%s)`, capture `~/.npmrc`
    / `~/.bash_history`, save `npm config list --json`, `gh api /user` output, and any
    active OSV-scanner output.
    Commit these into the private audit log before mutating anything.
+
 3. **Remove revocation-triggered persistence, then rotate.** First check for the keyv
    worm’s watcher and remove it if present:
 
@@ -454,6 +481,7 @@ consistent regardless of which registry was hit.
    (`~/.aws/credentials`, `~/.config/gcloud/`, Azure CLI); Vault and Kubernetes service
    account tokens; SSH (`~/.ssh/*`); any env-var-stored API keys, including AI provider
    keys, which IronWorm swept explicitly.
+
 4. **Check persistence mechanisms specific to this payload.** Shai-Hulud 2.0 registers a
    self-hosted GitHub runner literally named `SHA1HULUD`; check `gh api /user/runners`
    and `gh api /orgs/<org>/actions/runners`. qix / browser-hijack variants do not have
@@ -465,17 +493,21 @@ consistent regardless of which registry was hit.
    re-executes when the folder is next opened even if `node_modules` is clean:
    `python3 scripts/audit_workspace.py .` and
    [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md).
+
 5. **Remove or downgrade the affected dependency.** Pin to the immediately-prior version
    in `package.json`, then `pnpm install --before=<date-of-known-good>` or `npm ci`
    against a clean lockfile.
    Commit.
+
 6. **Regenerate lockfile from trusted sources.** Delete `node_modules/`, delete
    `package-lock.json` / `pnpm-lock.yaml`, run the install against the cool-off window
    in effect. Commit the regenerated lockfile.
+
 7. **Re-run the scanner to confirm clean.** `osv-scanner scan -L pnpm-lock.yaml` (or
    `package-lock.json`) and `uv run scripts/audit_npm.py` if the hit was on a global
    tool. Exit 3 means `[MALICIOUS]` still present; treat 0 as the only acceptable
    post-clean state.
+
 8. **Open a `supply-chain-audit-log.md` entry** using the template (see “Keeping A
    Supply Chain Audit Log” below and
    [`../supply-chain-audit-log-template.md`](../supply-chain-audit-log-template.md)).

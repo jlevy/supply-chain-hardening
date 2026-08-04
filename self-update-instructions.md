@@ -111,13 +111,22 @@ update it everywhere in lockstep, minding that the control and unit differ by to
 - pnpm 10.x: `NPM_CONFIG_MINIMUM_RELEASE_AGE=20160` (minutes).
 - pnpm 11+: `minimumReleaseAge: 20160` in `pnpm-workspace.yaml` (minutes); pnpm 11 does
   not read `NPM_CONFIG_*` env vars, only `PNPM_CONFIG_*`.
+- Yarn 4.10+: `npmMinimalAgeGate: 20160` in `.yarnrc.yml` (minutes).
+- Bun 1.3+: `minimumReleaseAge = 1209600` in `bunfig.toml` (seconds).
 - uv: `UV_EXCLUDE_NEWER=”14 days”`; pip 26.1+: `PIP_UPLOADED_PRIOR_TO=”P14D”`; poetry:
   `solver.min-release-age 14` (days).
 - The `date -v-14d` / `-d '14 days ago'` shell snippets and
   `npm-check-updates --cooldown 14` examples, plus `SUPPLY-CHAIN-SECURITY.md`,
   `guidelines/strict-mode.md`, and the per-ecosystem playbooks.
 
-Grep for `14`, `20160`, and `P14D` before claiming the change is complete.
+Grep for `14`, `20160`, `1209600`, and `P14D` before claiming the change is complete.
+
+**Re-check the shipped defaults, not just the syntax.** pnpm, Yarn, Bun, and Dependabot
+each enable a cool-off by default, and those default values move.
+The comparison table in `README.md` -> “What the Ecosystems Now Ship by Default” states
+a default for every tool and is the thing most likely to go stale; verify each row
+against vendor documentation rather than a secondary blog, which is how the Yarn and Bun
+rows were wrong in circulating write-ups.
 
 ## Updating Research Docs (`research-*-supply-chain-hardening.md`)
 
@@ -186,6 +195,10 @@ before bumping the Last Verified Against table.
 | uv | 0.12.1 | 2026-08-04 | agent-assisted refresh | `exclude-newer-package` / `UV_EXCLUDE_NEWER_PACKAGE` gives per-package cool-off overrides (`<pkg>=false` exempts one package); 0.12 rejects MD5-only hashes in hash-checking mode, rejects wheels that could replace the Python interpreter, rejects name-mismatched distributions, and rejects PEP 517 backend paths escaping the source tree via symlinks; `UV_NO_BUILD` documented; `UV_ONLY_BINARY` confirmed not a real env var |
 | cargo | 1.83+ | 2026-05-12 | initial author | `cargo-vet`, `cargo-deny`, `cargo-audit` versions pinned in CI examples |
 | go | 1.25.10 / 1.26.3 | 2026-05-12 | initial author | Minimum for CVE-2026-42501 fix |
+| Yarn | 4.10+ | 2026-08-04 | agent-assisted refresh | `npmMinimalAgeGate` defaults to `"1w"` (cool-off **on** by default); per-package exemptions via `npmPreapprovedPackages` (globs or exact locators); config lives in `.yarnrc.yml` |
+| Bun | 1.3+ | 2026-08-04 | agent-assisted refresh | `minimumReleaseAge` defaults to `259200` seconds (3 days, **on** by default); exemptions via `minimumReleaseAgeExcludes`; config in `bunfig.toml`; gate applies at resolution, not to versions already in `bun.lock` ([oven-sh/bun#30525](https://github.com/oven-sh/bun/issues/30525)) |
+| Dependabot | n/a (hosted) | 2026-08-04 | agent-assisted refresh | `cooldown.default-days` defaults to **3** since 2026-07-14, version updates only; security updates are exempt; sub-keys `semver-*-days`, `include`, `exclude`; supports pip, uv, and npm |
+| Renovate | n/a (hosted) | 2026-08-04 | agent-assisted refresh | `minimumReleaseAge` has no default; `internalChecksFilter` defaults to `strict` |
 | osv-scanner | v2.0.2 | 2026-05-23 | agent-assisted refresh | **Needs re-verification.** Pinned in the npm CI recipe; not re-checked on 2026-08-04 because the GitHub releases API was unreachable from the refresh session. Confirm against the [releases page](https://github.com/google/osv-scanner/releases) before the next refresh |
 | Claude Code | settings schema as of 2026-08-04 | 2026-08-04 | agent-assisted refresh | Precedence managed > CLI > local > project > user; project `.claude/settings.json` allow rules require workspace trust; `allowManagedHooksOnly`, `allowManagedPermissionRulesOnly`, `disableAllHooks`, `enableAllProjectMcpServers` drive the agent-workspace playbook |
 | VS Code | Workspace Trust as of 2026-08-04 | 2026-08-04 | agent-assisted refresh | `task.allowAutomaticTasks` defaults to `off`; automatic tasks never run in an untrusted workspace; `security.workspace.trust.*` settings drive the agent-workspace playbook |

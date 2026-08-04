@@ -1045,11 +1045,18 @@ typical projects. For a genuinely urgent CVE, take the documented exception (opt
 command, keeping `PIP_ONLY_BINARY` set and the wheel-only / no-build posture in place
 unless a source build is truly unavoidable), pin the exact version, and log it.
 
-**How does this interact with Renovate or Dependabot?** Renovate supports
-`minimumReleaseAge: "14 days"` in `renovate.json`, which applies to all ecosystems
-including PyPI. Dependabot does not yet support release-age gating for PyPI (as of
-2026-05). Both tools’ filters are independent of the package manager’s; both should be
-on.
+**How does this interact with Renovate or Dependabot?** Both support release-age gating
+for PyPI. Renovate uses `minimumReleaseAge: "14 days"` in `renovate.json`, which applies
+to all ecosystems; there is no default, so opt in.
+Dependabot uses the `cooldown` block in `.github/dependabot.yml` (`default-days`, plus
+`include` / `exclude` lists), and its ecosystem support covers `pip` and `uv`. **Since
+2026-07-14 Dependabot applies a 3-day cooldown by default**, for version updates only;
+security updates still open immediately.
+
+Set a window in both layers, because they gate different events: the bot gates *when a
+pull request is proposed*, the package manager gates *what a resolution may install*. A
+bot-only cooldown does nothing about `uv add somepkg` typed by hand, a CI job that
+re-locks, or a transitive dependency the bot never proposed.
 
 **What about `--only-binary :all:` breaking packages that only publish sdists?** Most
 widely-used packages publish wheels.
