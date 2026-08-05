@@ -31,22 +31,82 @@ Two behaviours of the 2026 worms defeat assumptions this guide used to rest on:
 
 ## Hardening (Ten-Minute Setup)
 
-### Step 1: Create the Hardening Script
+### Step 0: The One-Line Setup
+
+Every current JavaScript package manager now has a native rolling release-age window and
+a user-level config file.
+For most people this is the whole install-side setup: run the line for each tool you
+actually use, once, and it applies to every project on the machine.
+
+```sh
+npm config set min-release-age 14 --location=user            # npm 11.10+; days
+pnpm config set minimumReleaseAge 20160 --location=user      # pnpm 10.16+; minutes
+yarn config set --home npmMinimalAgeGate 20160               # Yarn 4.10+; minutes
+```
+
+Bun and uv need a file rather than a command, and for a reason in each case:
+
+```toml
+# ./bunfig.toml, per project. Bun 1.3+; seconds. See the Bun caveats below: the
+# global ~/.bunfig.toml is silently ignored by `bun add`, so commit this per repo.
+[install]
+minimumReleaseAge = 1209600
+```
+
+```sh
+# uv: use the environment variable, not the user config file. A project's
+# pyproject.toml can override user-level uv config, but nothing in a repo can
+# override the env var. See hardening-pypi.md.
+export UV_EXCLUDE_NEWER="14 days"
+```
+
+Verify each one took effect:
+
+```sh
+npm config get min-release-age        # 14
+pnpm config get minimumReleaseAge     # 20160
+yarn config get npmMinimalAgeGate     # 20160
+```
+
+This is enough for a single-developer workstation.
+Take the rest of this section if you need the window enforced in CI, inherited by
+subprocesses and GUI-launched agents, or applied to a package manager older than the
+versions above.
+
+> **What changed.** Earlier versions of this playbook opened with a shell script that
+> recomputed an absolute `NPM_CONFIG_BEFORE` date at every shell start, with separate
+> BSD and GNU `date` invocations.
+> That existed only because npm had no rolling window.
+> npm 11.10+ has one, so the date arithmetic is no longer necessary on a current npm.
+> The env-var recipe below is still the right answer for CI and for npm older than
+> 11.10; it is no longer the right *starting point*.
+
+### Step 1: Create the Hardening Script (CI, Subprocesses, and Older Tools)
+
+Use this when a config file is not enough: CI runners, processes that must inherit the
+policy through the environment, and npm older than 11.10 (which lacks `min-release-age`
+and needs the absolute-date fallback).
 
 The `~/.npm-hardening.sh` env-var recipe below applies to **npm (all versions) and pnpm
 10.x**. **pnpm 11 changed how it reads config** (see the pnpm 11 box after the script);
 if you are on pnpm 11, use the YAML recipe instead, or it will silently ignore these
 `NPM_CONFIG_*` variables.
 
-Create `~/.npm-hardening.sh` with the four protection env vars:
+Create `~/.npm-hardening.sh` with the protection env vars for your tools:
 
 ```sh
-# Rolling 14-day install quarantine, recomputed at shell start.
-# BSD date (macOS) primary; GNU date (Linux/WSL) fallback.
-NPM_HARDENING_BEFORE="$(date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
-  || date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
-[ -n "$NPM_HARDENING_BEFORE" ] && export NPM_CONFIG_BEFORE="$NPM_HARDENING_BEFORE"
-unset NPM_HARDENING_BEFORE
+# Pick ONE of the two npm blocks below; setting both is not supported.
+
+# (A) npm 11.10+ — preferred. Rolling window in days, no date arithmetic.
+export NPM_CONFIG_MIN_RELEASE_AGE=14
+
+# (B) npm older than 11.10 — legacy fallback only, since those versions have no
+# rolling window. Comment out block (A) if you use this. Recomputes an absolute
+# cutoff at shell start: BSD date (macOS) primary, GNU date (Linux/WSL) fallback.
+# NPM_HARDENING_BEFORE="$(date -u -v-14d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
+#   || date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
+# [ -n "$NPM_HARDENING_BEFORE" ] && export NPM_CONFIG_BEFORE="$NPM_HARDENING_BEFORE"
+# unset NPM_HARDENING_BEFORE
 
 # pnpm 10.x native rolling check; 20160 = 14 days in minutes. Requires pnpm 10.16-10.x.
 # (pnpm 11 ignores this name; see the pnpm 11 box below.)
@@ -55,13 +115,12 @@ export NPM_CONFIG_MINIMUM_RELEASE_AGE=20160
 # Defeat install scripts. Primary exfil vector in worm-class attacks.
 export NPM_CONFIG_IGNORE_SCRIPTS=true
 
-# pnpm 10.x only: refuse mutating installs. npm warns and ignores; harmless.
-# npm users: use `npm ci` (clean install) in CI and after lockfile changes; it is
-# the non-mutating install mode for npm and is the equivalent of pnpm's frozen-lockfile.
+# The two below are pnpm 10.x only. Skip them entirely unless you actually run
+# pnpm 10.x: npm warns and ignores them, and pnpm 11 does not read NPM_CONFIG_* at
+# all (and already defaults strictDepBuilds to true).
+# npm users: use `npm ci` in CI and after lockfile changes; it is npm's non-mutating
+# install mode and the equivalent of pnpm's frozen-lockfile.
 export NPM_CONFIG_FROZEN_LOCKFILE=true
-
-# pnpm 10.x only: fail when a dependency wants to run an unreviewed build script.
-# Pair with `allowBuilds` in pnpm-workspace.yaml to allowlist trusted build scripts.
 export NPM_CONFIG_STRICT_DEP_BUILDS=true
 ```
 
@@ -139,6 +198,18 @@ export NPM_CONFIG_STRICT_DEP_BUILDS=true
 > minimumReleaseAge = 1209600
 > minimumReleaseAgeExcludes = []
 > ```
+> 
+> **Two Bun gaps to know about, both open as of 2026-08-04:**
+> 
+> - **The global `~/.bunfig.toml` gate is silently ignored by `bun add`;** only the
+>   project-local `./bunfig.toml` is honored.
+>   Commit the file per repository rather than relying on a machine-wide setting, or you
+>   will believe you are gated and not be.
+> - **`bunx` accepts `--minimum-release-age` and does nothing with it**
+>   ([oven-sh/bun#30748](https://github.com/oven-sh/bun/issues/30748)). The flag is a
+>   no-op: a 100-year window still installs the newest version.
+>   This is a concrete reason `bunx` stays on the Agent Ban List below rather than being
+>   “safe if you pass the age flag.”
 > 
 > Bun applies the gate at resolution, so a version already pinned in `bun.lock` installs
 > without its age being re-checked
@@ -271,7 +342,37 @@ release notes (or your own build output).
 Copy the `dist.tarball` URL for the next step (it already has the correct path for
 scoped packages).
 
-#### Surgical Install (Preferred)
+#### Scoped Exclude (Preferred)
+
+Every current package manager can exempt one package from the gate without touching the
+rest of the graph.
+Prefer this: it is one committed line, it is visible in review, and it
+does not require reconstructing a tarball URL.
+
+```sh
+npm config set min-release-age-exclude <pkg>      # npm 12; repeatable
+```
+
+```yaml
+# pnpm-workspace.yaml
+minimumReleaseAgeExclude: ["<pkg>"]
+
+# .yarnrc.yml — exact locators or globs
+npmPreapprovedPackages: ["<pkg>@<version>"]
+```
+
+```toml
+# bunfig.toml
+[install]
+minimumReleaseAgeExcludes = ["<pkg>"]
+```
+
+Pin the exact version in `package.json` alongside the exclude, and **delete the exclude
+once the version ages past the window.** An exclude left in place silently exempts that
+package from every future upgrade, which is how a one-off exception becomes a permanent
+hole.
+
+#### Surgical Install (When You Cannot Use an Exclude)
 
 Install the one package you vetted without touching the global gate.
 Resolution-time controls (`before` / `minimum-release-age`) still apply to that

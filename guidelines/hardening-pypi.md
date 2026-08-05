@@ -72,6 +72,22 @@ export PIP_UPLOADED_PRIOR_TO="P14D"
 > export UV_NO_BUILD_PACKAGE="pkg-a pkg-b"      # uv refuses sdists only for these
 > ```
 
+> **For uv, keep the policy in the environment, not in the user config file.** uv’s
+> precedence is CLI flag > environment variable > **project** config > **user** config >
+> system config. Project config outranks user config, so a `pyproject.toml` or `uv.toml`
+> in a repository you clone can quietly override a cool-off you set in
+> `~/.config/uv/uv.toml`. The environment variable is the one setting a repository
+> cannot override.
+> 
+> This is the opposite of the npm-family advice in
+> [`hardening-npm.md`](hardening-npm.md), where a user-level config file is the simplest
+> durable answer. The difference is precedence, not preference: check the order before
+> assuming a config file is the stronger control.
+> 
+> User-level `uv.toml` (`~/.config/uv/uv.toml` on macOS and Linux,
+> `%APPDATA%\uv\uv.toml` on Windows) is still worth setting as a floor for `uv tool`
+> commands, which ignore project-local configuration entirely.
+
 ### Step 2: Source From Shell Init
 
 Pick the line for every shell you use.
@@ -117,7 +133,9 @@ the macOS launchd / Windows User-wide instructions).
 ### Step 4: When You Intentionally Need a Fresh Package
 
 As with npm, the age gate (`UV_EXCLUDE_NEWER` / `PIP_UPLOADED_PRIOR_TO`) applies at
-resolution time, so prefer a surgical, hash-pinned install over relaxing the gate.
+resolution time. In preference order: exempt the single package with
+`exclude-newer-package`, else install that one wheel surgically by URL and hash, and
+only relax the gate when neither is possible.
 A fresh-version exception (e.g. an urgent CVE patch) needs only a wheel; it does **not**
 need source-build execution, so keep the sdist / no-build protection in place
 throughout.
@@ -136,22 +154,6 @@ No `jq`? The same fields are plain JSON: `urls[].filename`,
 `urls[].upload_time_iso_8601`, `urls[].digests.sha256`, `urls[].url`. Confirm the upload
 time matches the release you intend, then keep the wheel’s `sha256` and `url` for the
 next step.
-
-#### Surgical Install (Preferred)
-
-Install the specific wheel by URL with its hash.
-pip verifies the `#sha256` fragment against the downloaded file and never re-resolves
-the version through the gate:
-
-```sh
-# pip verifies the fragment hash:
-pip install "https://files.pythonhosted.org/.../<pkg>-<version>-py3-none-any.whl#sha256=<sha256>"
-# uv:
-uv pip install "https://files.pythonhosted.org/.../<pkg>-<version>-py3-none-any.whl"
-```
-
-This bypasses the age gate for one vetted wheel only, keeps sdist / no-build enforcement
-intact, and cannot linger in your shell.
 
 #### Exempt One Package, Not the Whole Graph (uv)
 
@@ -174,6 +176,22 @@ variable is `UV_EXCLUDE_NEWER_PACKAGE`. Values take the same three forms as
 `exclude-newer`: an RFC 3339 timestamp (`2026-08-01T00:00:00Z`), a friendly duration
 (`14 days`), or an ISO 8601 duration (`P14D`). Remove the entry once the package ages
 past the window; leaving it behind converts a one-off exception into a permanent hole.
+
+#### Surgical Install (When You Cannot Use an Exclude)
+
+Install the specific wheel by URL with its hash.
+pip verifies the `#sha256` fragment against the downloaded file and never re-resolves
+the version through the gate:
+
+```sh
+# pip verifies the fragment hash:
+pip install "https://files.pythonhosted.org/.../<pkg>-<version>-py3-none-any.whl#sha256=<sha256>"
+# uv:
+uv pip install "https://files.pythonhosted.org/.../<pkg>-<version>-py3-none-any.whl"
+```
+
+This bypasses the age gate for one vetted wheel only, keeps sdist / no-build enforcement
+intact, and cannot linger in your shell.
 
 #### Relax the Gate (Last Resort)
 
