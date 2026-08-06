@@ -1,6 +1,6 @@
 # NPM Operational Hardening
 
-**Last updated:** 2026-08-04
+**Last updated:** 2026-08-06
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -29,9 +29,9 @@ Two behaviours of the 2026 worms defeat assumptions this guide used to rest on:
   Cleaning `node_modules` does not remove it; see
   [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md).
 
-## Hardening (Ten-Minute Setup)
+## Setup
 
-### Step 0: The One-Line Setup
+### Step 0: The Ten-Minute Setup
 
 Every current JavaScript package manager now has a native rolling release-age window and
 a user-level config file.
@@ -69,17 +69,41 @@ yarn config get npmMinimalAgeGate     # 20160
 ```
 
 This is enough for a single-developer workstation.
-Take the rest of this section if you need the window enforced in CI, inherited by
-subprocesses and GUI-launched agents, or applied to a package manager older than the
-versions above.
+Everything else on the install side lives behind the
+[Advanced Setup](#advanced-setup-only-if-you-need-it) boundary below; skip straight to
+[Compromise Assessment](#compromise-assessment) if none of its situations is yours.
 
 > **What changed.** Earlier versions of this playbook opened with a shell script that
 > recomputed an absolute `NPM_CONFIG_BEFORE` date at every shell start, with separate
 > BSD and GNU `date` invocations.
 > That existed only because npm had no rolling window.
 > npm 11.10+ has one, so the date arithmetic is no longer necessary on a current npm.
-> The env-var recipe below is still the right answer for CI and for npm older than
-> 11.10; it is no longer the right *starting point*.
+> The env-var recipe in Advanced Setup is still the right answer for CI and for npm
+> older than 11.10; it is no longer the right *starting point*.
+
+### Agent Ban List
+
+Do not run `npx`, `pnpm dlx`, `bunx`, or `yarn dlx` without an explicit version pin and
+a review of the resolved `pkg@version`. These tools fetch and execute the latest
+published code, bypassing your cool-off window.
+Use `pnpm dlx <pkg>@<exact-version>` and read the resolved version before allowing
+execution. Full agent rules are in [`../AGENTS.md`](../AGENTS.md) → “Safety Rule For
+Agents”.
+
+For untrusted first-runs, see
+[`untrusted-repo-first-run.md`](untrusted-repo-first-run.md).
+
+## Advanced Setup: Only If You Need It
+
+Each step below names the situation it exists for.
+If none applies, Step 0 was the whole setup.
+
+- **Steps 1-3** (env-var script, shell init, verification): CI runners, policy that
+  subprocesses and GUI-launched agents must inherit, npm older than 11.10, and pnpm’s
+  YAML policy file.
+- **Step 4**: the day you genuinely need a version younger than 14 days.
+- **Step 5**: enforcing the cool-off at upgrade-proposal time as well as at resolution
+  time.
 
 ### Step 1: Create the Hardening Script (CI, Subprocesses, and Older Tools)
 
@@ -208,8 +232,8 @@ export NPM_CONFIG_STRICT_DEP_BUILDS=true
 > - **`bunx` accepts `--minimum-release-age` and does nothing with it**
 >   ([oven-sh/bun#30748](https://github.com/oven-sh/bun/issues/30748)). The flag is a
 >   no-op: a 100-year window still installs the newest version.
->   This is a concrete reason `bunx` stays on the Agent Ban List below rather than being
->   “safe if you pass the age flag.”
+>   This is a concrete reason `bunx` stays on the Agent Ban List (in the Setup section
+>   above) rather than being “safe if you pass the age flag.”
 > 
 > Bun applies the gate at resolution, so a version already pinned in `bun.lock` installs
 > without its age being re-checked
@@ -305,18 +329,6 @@ For **pnpm 10.x**, `NPM_CONFIG_MINIMUM_RELEASE_AGE` (note the spelling: `MINIMUM
 `MIN`) is safe to set alongside `BEFORE`; pnpm enforces the stricter of the two.
 For **pnpm 11**, none of the `NPM_CONFIG_*` names are read at all; use the YAML config
 (or the `PNPM_CONFIG_*` env prefix) from the Step 1 pnpm 11 box.
-
-### Agent Ban List
-
-Do not run `npx`, `pnpm dlx`, `bunx`, or `yarn dlx` without an explicit version pin and
-a review of the resolved `pkg@version`. These tools fetch and execute the latest
-published code, bypassing your cool-off window.
-Use `pnpm dlx <pkg>@<exact-version>` and read the resolved version before allowing
-execution. Full agent rules are in [`../AGENTS.md`](../AGENTS.md) → “Safety Rule For
-Agents”.
-
-For untrusted first-runs, see
-[`untrusted-repo-first-run.md`](untrusted-repo-first-run.md).
 
 ### Step 4: When You Intentionally Need a Fresh Package
 
@@ -590,9 +602,9 @@ consistent regardless of which registry was hit.
    Look at `~/.bash_history`, recent `crontab -l`, `launchctl list` (macOS), and
    `systemctl --user list-unit-files --state=enabled` (Linux).
    Since April 2026, also check the **repository** for autostart config the payload may
-   have written (`.claude/settings.json`, `.vscode/tasks.json`, `.devcontainer/`), which
-   re-executes when the folder is next opened even if `node_modules` is clean:
-   `python3 scripts/audit_workspace.py .` and
+   have written (`.claude/settings.json`, `.codex/hooks.json`, `.vscode/tasks.json`,
+   `.devcontainer/`), which re-executes when the folder is next opened even if
+   `node_modules` is clean: `python3 scripts/audit_workspace.py .` and
    [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md).
 
 5. **Remove or downgrade the affected dependency.** Pin to the immediately-prior version

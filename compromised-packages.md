@@ -1,6 +1,6 @@
 # Compromised Packages
 
-**Last updated:** 2026-08-04
+**Last updated:** 2026-08-06
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -36,23 +36,25 @@ Routine low-impact typosquats with negligible download counts.
 ecosystems, each ecosystem gets its own row so per-ecosystem audits stay
 straightforward.
 
-## Table (Actionable IOCs)
+**Aging:** the Active Watch List is capped.
+A row moves to [Historical Incidents](#historical-incidents-recognition-only) once it is
+more than about twelve months old and its artifacts are no longer served (versions
+yanked, no proxy cache still delivering the payload).
+The pattern keeps its recognition value there; the per-version IOCs live on in the
+systems of record, which cover old incidents completely.
+This cap is what keeps the file a watch list rather than a slowly-growing feed.
 
-Every row below has either an exact `pkg@version` IOC, a complete affected-package list
-at the linked URL, or a canonical GHSA / RUSTSEC ID that resolves to one.
+## Active Watch List (Actionable IOCs)
+
+Incidents from roughly the last twelve months, plus any older incident whose artifacts
+are still being served (Go module-proxy caching keeps some payloads fetchable long after
+the source repository is gone).
+Every row has either an exact `pkg@version` IOC, a complete affected-package list at the
+linked URL, or a canonical GHSA / RUSTSEC ID that resolves to one.
 Defenders running a scan can use this table directly without follow-up research.
 
 | Date | Name | Ecosystem | Scale | Affected `pkg@version` (representative; full list at the linked source) | Vector | References |
 | --- | --- | --- | --- | --- | --- | --- |
-| 2021-11..2025-02 | BoltDB typosquat | Go modules | 1 module, cached in module proxy ~3 years | `github.com/boltdb-go/bolt@v1.3.1` | Typosquat of `boltdb/bolt`; module proxy caching hid removal | [Socket](https://socket.dev/blog/malicious-package-exploits-go-module-proxy-caching-for-persistence); [Snyk](https://snyk.io/blog/go-malicious-package-alert/); [The Register](https://www.theregister.com/2025/02/04/golang_supply_chain_attack/) |
-| 2022-05 | rustdecimal typosquat | crates.io | 1 crate, <500 downloads | `rustdecimal@1.23.1` | Typosquat of `rust_decimal`; runtime payload in `Decimal::new` targeting GitLab CI | [Rust Blog](https://blog.rust-lang.org/2022/05/10/malicious-crate-rustdecimal/); [RUSTSEC-2022-0042](https://rustsec.org/advisories/RUSTSEC-2022-0042.html); [GHSA-7pwq-f4pq-78gm](https://github.com/advisories/GHSA-7pwq-f4pq-78gm); [Sonatype](https://www.sonatype.com/blog/this-week-in-malware-may-13th-edition) |
-| 2022-05-14 | ctx account takeover | PyPI | 1 package, ~27K downloads in 10-day window | `ctx` (all versions published 2022-05-14 through 2022-05-24) | Expired-domain re-registration; password reset; env-var exfil to Heroku endpoint | [The Hacker News](https://thehackernews.com/2022/05/pypi-package-ctx-and-php-library-phpass.html); [Sonatype](https://www.sonatype.com/blog/pypi-package-ctx-compromised-are-you-at-risk); [BleepingComputer](https://www.bleepingcomputer.com/news/security/popular-python-and-php-libraries-hijacked-to-steal-aws-keys/) |
-| 2022-12-25 | PyTorch torchtriton | PyPI | 1 package, ~2,700 downloads in 5-day window; nightly builds only | `torchtriton@2.0.0` | Dependency confusion; public PyPI package with higher version than private index; exfil via DNS tunneling to `*.h4ck.cfd` | [PyTorch blog](https://pytorch.org/blog/compromised-nightly-dependency/); [SentinelOne](https://www.sentinelone.com/blog/pytorch-dependency-torchtriton-supply-chain-attack/); [ReversingLabs](https://www.reversinglabs.com/blog/pytorch-supply-chain-attack-dependency-confusion-burns-devops) |
-| 2024-12-04 | Ultralytics YOLO cryptominer | PyPI | 4 versions, ~60M monthly downloads | `ultralytics@8.3.41`, `ultralytics@8.3.42`, `ultralytics@8.3.45`, `ultralytics@8.3.46` | GitHub Actions `pull_request_target` script injection; stolen PyPI token; XMRig cryptominer in wheel | [PyPI blog](https://blog.pypi.org/posts/2024-12-11-ultralytics-attack-analysis/); [ReversingLabs](https://www.reversinglabs.com/blog/compromised-ultralytics-pypi-package-delivers-crypto-coinminer); [Snyk](https://snyk.io/blog/ultralytics-ai-pwn-request-supply-chain-attack/); [Wiz](https://www.wiz.io/blog/ultralytics-ai-library-hacked-via-github-for-cryptomining) |
-| 2025-01..02 | hypert / layout typosquats | Go modules | 7 modules | `github.com/shallowmulti/hypert`, `github.com/shadowybulk/hypert`, `github.com/belatedplanet/hypert`, `github.com/thankfulmai/hypert`, `github.com/vainreboot/layout`, `github.com/ornatedoctrin/layout`, `github.com/utilizedsun/layout` | Typosquats of `areknoster/hypert` and `loov/layout`; obfuscated RCE loader | [Socket](https://socket.dev/blog/typosquatted-go-packages-deliver-malware-loader); [The Hacker News](https://thehackernews.com/2025/03/seven-malicious-go-packages-found.html) |
-| 2025-02 | Fake `x/crypto` (Rekoobe) | Go modules | 1 module | `github.com/xinfeisoft/crypto@v0.15.0` | Impersonates `golang.org/x/crypto`; hooks `ReadPassword()` to exfil creds; deploys Rekoobe backdoor (APT31) | [Socket](https://socket.dev/blog/malicious-go-crypto-module-steals-passwords-and-deploys-rekoobe-backdoor); [The Hacker News](https://thehackernews.com/2026/02/malicious-go-crypto-module-steals.html) |
-| 2025-05 | Disk-wiper modules | Go modules | 3 modules | `github.com/truthfulpharm/prototransform`, `github.com/blankloggia/go-mcp`, `github.com/steelpoor/tlsproxy` | Typosquats; `dd if=/dev/zero of=/dev/sda` wiper on Linux | [Socket](https://socket.dev/blog/wget-to-wipeout-malicious-go-modules-fetch-destructive-payload); [BleepingComputer](https://www.bleepingcomputer.com/news/security/linux-wiper-malware-hidden-in-malicious-go-modules-on-github/) |
-| 2025-06 | MongoDB qmgo typosquat | Go modules | 2 variants | `github.com/qiniiu/qmgo`, `github.com/qiiniu/qmgo` | Typosquat of `qiniu/qmgo` (extra `i` in username); malicious `NewClient` | [GitLab](https://about.gitlab.com/blog/gitlab-catches-mongodb-go-module-supply-chain-attack/) |
 | 2025-08 | Nx packages | npm | ~10 packages | `nx@21.5.0`-`21.5.3`, `@nx/devkit@21.5.0`-`21.5.3`, `@nx/enterprise-cloud@3.2.0`, `@nx/eslint@21.5.0`, `@nx/js@21.5.0`/`21.5.1`, `@nx/key@3.2.0`, `@nx/node@21.5.0`, `@nx/workspace@21.5.0` | Maintainer-account compromise; stole npm and GitHub tokens | OSV; Snyk |
 | 2025-09-08 | “qix” maintainer phish | npm | 18+ packages, ~billions of weekly downloads combined, malicious versions live ~2 hours | `ansi-styles@6.2.2`, `debug@4.4.2`, `chalk@5.6.1`, `supports-color@10.2.1`, `strip-ansi@7.1.1`, `ansi-regex@6.2.1`, `wrap-ansi@9.0.1`, `color-convert@3.1.1`, `color-name@2.0.1`, `is-arrayish@0.3.3`, `slice-ansi@7.1.1`, `error-ex@1.3.3`, `simple-swizzle@0.2.3`, `supports-hyperlinks@4.1.1`, `chalk-template@1.1.1`, `backslash@0.2.1`, `color-string@2.1.1`, `has-ansi@6.0.1`, `proto-tinker-wc@0.1.87` | Phishing via fake `npmjs.help` 2FA-reset email; collected user/pass/TOTP | OSV (`MAL-2025-46969`, `MAL-2025-46974`); [Socket](https://socket.dev/blog/npm-author-qix-compromised-in-major-supply-chain-attack); [StepSecurity](https://www.stepsecurity.io/blog/20-popular-npm-packages-compromised-chalk-debug-strip-ansi-color-convert-wrap-ansi) |
 | 2025-09 | faster_log / async_println crypto-key theft | crates.io | 2 crates, ~8,424 combined downloads | `faster_log` (all versions by `rustguruman`), `async_println` (all versions by `dumbnbased`) | Typosquat of `fast_log`; runtime exfil of Solana/Ethereum private keys via Cloudflare Workers | [Rust Blog](https://blog.rust-lang.org/2025/09/24/crates.io-malicious-crates-fasterlog-and-asyncprintln/); [Socket](https://socket.dev/blog/two-malicious-rust-crates-impersonate-popular-logger-to-steal-wallet-keys); [The Hacker News](https://thehackernews.com/2025/09/malicious-rust-crates-steal-solana-and.html) |
@@ -86,6 +88,26 @@ Defenders running a scan can use this table directly without follow-up research.
 | 2026-06-08 | Hades (Shai-Hulud lineage) | PyPI | 37 malicious wheels across 19-26 packages (counts differ by vendor); part of a 471-artifact npm+PyPI campaign | `embiggen@0.11.97`, `ensmallen@0.8.101`, `gpsea@0.9.14`, `pyphetools@0.9.120`, `phenopacket-store-toolkit@0.1.7`, `ppkt2synergy@0.1.1`, `langchain-core-mcp@1.4.2`, `@1.4.3`, `openai-mcp@2.41.1`, `@2.41.2`, `instructor-mcp@1.15.2`, `@1.15.3`, `tiktoken-mcp@0.13.1`, `@0.13.2`, `ray-mcp-server@0.2.1` | **`.pth` interpreter-startup hook, shipped inside wheels.** A `*-setup.pth` file (e.g. `langchain_core-setup.pth`) runs on *every* Python startup—no import of the package required and no sdist build involved, so `--only-binary` / `--no-build` do not help. Downloads Bun 1.3.13/1.3.14 and runs `_index.js`, which reads process memory directly (`/proc/<pid>/mem`, Mach APIs, `ReadProcessMemory`). Targets bioinformatics and MCP/AI tooling | [Socket](https://socket.dev/blog/mini-shai-hulud-miasma-and-hades-worms-target-bioinformatics-and-mcp-developers-via-malicious); [The Hacker News](https://thehackernews.com/2026/06/hades-pypi-attack-19-packages-poisoned.html); [Orca](https://orca.security/resources/blog/hades-pypi-supply-chain-attack/); [Dark Reading](https://www.darkreading.com/application-security/hades-campaign-pypi-shai-hulud) |
 | 2026-08-04 | keyv / cacheable worm | npm | Counts differ because the registry changed during the campaign: SafeDep 2,234 versions / 444 packages; Aikido 1,381 versions / 868 packages; Socket 442 versions / 353 names. Reached 9 unrelated orgs (`@ornikar`, `@deliveroo`, `@servicetitan`, `@qlik`, `@onereach`, `@or-sdk`, `@arv-bedrock`, `@adminide-stack`) in ~30 min. `keyv` alone is ~127M weekly downloads | `keyv@6.0.0`, `cacheable@2.5.1`, `cacheable-request@13.0.20`, `flat-cache@6.1.24`, `file-entry-cache@11.1.7`, `cache-manager@7.2.10`, `@cacheable/net@2.1.1`, `@cacheable/node-cache@3.1.2`, `@cacheable/memory@2.2.1`, `@cacheable/utils@2.5.1`, `@thiennq/docs-viewer@1.6.2` (the `@keyv/*` adapters and the Keyv 5.x line were clean) | `preinstall` runs `setup.mjs`, which **downloads a standalone Bun 1.3.13 runtime unverified** and executes `Math_Symbol.js` (~728 KB, basE91-encoded). Harvests AWS/GCP/Azure metadata, Vault and Kubernetes tokens, npm and GitHub Actions OIDC secrets. Republishes via npm OIDC exchange and **generates DSSE attestations with Fulcio certs and Rekor entries**. Plants `.claude/settings.json` `SessionStart` and `.vscode/tasks.json` `folderOpen` autostart hooks. Installs a **revocation dead-man’s switch** (`~/.config/gh-token-monitor/`, LaunchAgent/systemd user unit) that polls GitHub every 60 s and `eval`s a remote handler when the token stops working | [Socket](https://socket.dev/blog/popular-npm-packages-in-the-keyv-and-cacheable-namespaces-compromised-in-active-supply-chain); [SafeDep](https://safedep.io/keyv-npm-supply-chain-compromise/); [Aikido](https://www.aikido.dev/blog/keyv-and-friends-compromised-in-npm-supply-chain-attack); [Wiz](https://www.wiz.io/blog/keyv-and-cacheable-npm-supply-chain-attack); [The Hacker News](https://thehackernews.com/2026/08/keyv-linked-npm-worm-poisons-hundreds.html) |
 
+## Historical Incidents (Recognition Only)
+
+Aged out of the Active Watch List: the mechanism is still worth recognising on sight,
+but the malicious versions are long yanked and no longer turn up in a fresh resolve.
+Per-version IOCs are deliberately not duplicated here.
+`osv-scanner` and the [systems of record](README.md#authoritative-sources) cover these
+incidents completely, so a scan of an old lockfile should use those, not this file.
+
+| Date | Name | Ecosystem | Pattern worth recognising | References |
+| --- | --- | --- | --- | --- |
+| 2021-11..2025-02 | BoltDB typosquat | Go modules | Module-proxy caching served a removed typosquat for ~3 years; deleting the source repository does not purge `proxy.golang.org` | [Socket](https://socket.dev/blog/malicious-package-exploits-go-module-proxy-caching-for-persistence); [Snyk](https://snyk.io/blog/go-malicious-package-alert/) |
+| 2022-05 | rustdecimal typosquat | crates.io | Typosquat with a runtime payload in an innocuous-looking API call, targeting GitLab CI | [Rust Blog](https://blog.rust-lang.org/2022/05/10/malicious-crate-rustdecimal/); [RUSTSEC-2022-0042](https://rustsec.org/advisories/RUSTSEC-2022-0042.html) |
+| 2022-05-14 | ctx account takeover | PyPI | Expired-domain re-registration to take over a dormant maintainer account; malicious for ~10 days—the slow-detection tail the 14-day cool-off is sized against | [The Hacker News](https://thehackernews.com/2022/05/pypi-package-ctx-and-php-library-phpass.html); [Sonatype](https://www.sonatype.com/blog/pypi-package-ctx-compromised-are-you-at-risk) |
+| 2022-12-25 | PyTorch torchtriton | PyPI | Dependency confusion: public package outversioned a private-index name; DNS-tunnel exfiltration | [PyTorch blog](https://pytorch.org/blog/compromised-nightly-dependency/); [SentinelOne](https://www.sentinelone.com/blog/pytorch-dependency-torchtriton-supply-chain-attack/) |
+| 2024-12-04 | Ultralytics YOLO cryptominer | PyPI | GitHub Actions `pull_request_target` script injection stole a PyPI token; cryptominer shipped in the wheel | [PyPI blog](https://blog.pypi.org/posts/2024-12-11-ultralytics-attack-analysis/); [Wiz](https://www.wiz.io/blog/ultralytics-ai-library-hacked-via-github-for-cryptomining) |
+| 2025-01..02 | hypert / layout typosquats | Go modules | Batch typosquats of niche libraries carrying an obfuscated RCE loader | [Socket](https://socket.dev/blog/typosquatted-go-packages-deliver-malware-loader); [The Hacker News](https://thehackernews.com/2025/03/seven-malicious-go-packages-found.html) |
+| 2025-02 | Fake `x/crypto` (Rekoobe) | Go modules | Impersonated `golang.org/x/crypto`; hooked `ReadPassword()` and deployed an APT backdoor | [Socket](https://socket.dev/blog/malicious-go-crypto-module-steals-passwords-and-deploys-rekoobe-backdoor); [The Hacker News](https://thehackernews.com/2026/02/malicious-go-crypto-module-steals.html) |
+| 2025-05 | Disk-wiper modules | Go modules | Typosquats carrying a destructive disk-wiper rather than an infostealer | [Socket](https://socket.dev/blog/wget-to-wipeout-malicious-go-modules-fetch-destructive-payload); [BleepingComputer](https://www.bleepingcomputer.com/news/security/linux-wiper-malware-hidden-in-malicious-go-modules-on-github/) |
+| 2025-06 | MongoDB qmgo typosquat | Go modules | Single-letter username typosquat; malicious behaviour hidden in the client constructor | [GitLab](https://about.gitlab.com/blog/gitlab-catches-mongodb-go-module-supply-chain-attack/) |
+
 ## Contextual Incidents (Unverified / Pending Verification)
 
 The campaigns below have been mentioned in trusted feeds but lack the per-version,
@@ -93,7 +115,7 @@ multi-source citations required for the actionable-IOC table.
 Treat them as situational awareness, **not** as actionable IOCs—there is no grep-able
 string here, and the hardening cool-off does not specifically target them.
 If you have verified package@version, dates, and at least two independent references,
-promote the row into the canonical table above and remove it here.
+promote the row into the Active Watch List and remove it here.
 
 | Date (approx.) | Name | Ecosystem | What is known | What is missing |
 | --- | --- | --- | --- | --- |
@@ -102,14 +124,16 @@ promote the row into the canonical table above and remove it here.
 ## How To Use This Table
 
 - **Spot-check installed packages.** Grep lockfiles and installed trees for any
-  `pkg@version` above.
+  `pkg@version` in the Active Watch List.
   The npm hardening guide includes a ready-made grep template in `hardening-npm.md` →
   “Compromise Assessment”.
   The PyPI hardening guide includes an equivalent in `hardening-pypi.md` → “Compromise
-  Assessment”.
+  Assessment”. For lockfiles older than the active window, run `osv-scanner` against the
+  systems of record instead of grepping this file; Historical rows deliberately carry no
+  IOCs.
 - **Reference, do not duplicate.** Per-ecosystem hardening and research docs link to
   this table rather than reproducing it.
-  New rows are added here first.
+  New rows enter the Active Watch List first.
 - **Open an audit-log entry** if any installed package matches; see
   `supply-chain-audit-log-template.md`.
 

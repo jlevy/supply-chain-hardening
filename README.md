@@ -3,10 +3,45 @@
 **For AI agents and developers.** Concrete recipes, zero-dep audit scripts, and a
 curated watch list of recent compromises across npm, PyPI, crates.io, and Go modules.
 
-**Author:** Joshua Levy (github.com/jlevy) with agent assistance\
-**Last updated:** 2026-08-04
+**Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
-## Quick Start
+## Start Here
+
+Supply-chain payloads no longer share a single execution moment.
+**When the payload runs determines which control stops it**, so this table is the
+primary map of the repo:
+
+| Trigger | Runs when | Example | What stops it |
+| --- | --- | --- | --- |
+| **Install-time** | `npm install`, `pip install`, `cargo build` | keyv, Miasma, Shai-Hulud | Cool-off window, disabled install scripts, frozen lockfile: the [ecosystem playbooks](#harden-a-single-ecosystem) |
+| **Load-time** | `require()`, `import`, or *any* interpreter start | node-ipc, Hades `.pth` | Cool-off window and [sandboxed first runs](guidelines/untrusted-repo-first-run.md) only |
+| **Open-time** | A developer or AI agent *opens* the repo | Miasma/Azure, TrapDoor `CLAUDE.md` | No package-manager control applies. Workspace trust, hook policy, and pre-open triage: the [agent-workspace playbook](guidelines/hardening-agent-workspaces.md) |
+
+The install-side setup is one command per tool you use
+([details, verification, and the remaining tools](guidelines/hardening-npm.md#step-0-the-ten-minute-setup)):
+
+```sh
+npm config set min-release-age 14 --location=user         # npm 11.10+; days
+pnpm config set minimumReleaseAge 20160 --location=user   # pnpm 10.16+; minutes
+yarn config set --home npmMinimalAgeGate 20160            # Yarn 4.10+; minutes
+export UV_EXCLUDE_NEWER="14 days"                         # uv; put in shell init
+```
+
+(Bun needs a per-repo `bunfig.toml`; pip 26.1+ takes `PIP_UPLOADED_PRIOR_TO="P14D"`;
+Cargo and Go have no age gate, so commit the lockfile and build `--locked` /
+`-mod=readonly`.)
+
+Before opening any repo you did not write:
+
+```sh
+uv run scripts/audit_workspace.py ./REPO   # or: python3 scripts/audit_workspace.py ./REPO
+```
+
+If you work with AI agents, copy [`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md)
+into your codebase and reference it from your project’s `AGENTS.md`. Everything below is
+reference and rationale.
+
+## Choosing Your Path
 
 Read the [Safety Note](#safety-note) before applying anything, and validate every recipe
 against the [Authoritative Sources](#authoritative-sources).
@@ -36,7 +71,8 @@ against the [Authoritative Sources](#authoritative-sources).
 ### Harden a Single Ecosystem
 
 Pick the playbook for the ecosystem you use.
-Each is a copy-pasteable Ten-Minute Setup.
+Each opens with a short, copy-pasteable setup and pushes the edge cases behind an
+explicit “only if you need it” boundary.
 
 | Ecosystem | Playbook |
 | --- | --- |
@@ -76,8 +112,8 @@ For an agent or human walking through every ecosystem on a workstation, in order
 1. **Inventory.** Identify which of npm, PyPI, crates.io, Go is installed and used.
    Skip the rest.
 2. **Per ecosystem,** open the playbook above and:
-   1. Apply the Ten-Minute Setup verbatim, including shell-init and per-platform
-      variants.
+   1. Apply the Setup section verbatim, including shell-init and per-platform variants
+      where your situation needs them.
    2. Run the verification commands.
       Confirm each control reports the expected value.
    3. Run the “Compromise Assessment” commands once to baseline the current state.
@@ -174,7 +210,17 @@ For that, use the [Authoritative Sources](#authoritative-sources).
 The watch list is curated, not exhaustive: notable named incidents that defenders should
 recognise, plus enough context to make the hardening guides concrete.
 
-## The Layered Model
+## The Layered Model (Where Enforcement Lives)
+
+The repo organises its controls along two orthogonal axes:
+
+- **Trigger class**: *when the payload runs* (install-, load-, or open-time).
+  This is the primary lens—the table in [Start Here](#start-here)—because it maps
+  one-to-one onto which control stops an attack.
+- **Layer**: *where enforcement lives* (developer shell, project config, CI, registry,
+  sandbox, incident response).
+  Use this second lens to decide where to put a control so that it cannot be bypassed or
+  overridden.
 
 Supply-chain hardening is a stack of six layers.
 This repo covers L1-L3 and L6 directly, names L5 with a concrete recipe, and points
@@ -182,13 +228,12 @@ elsewhere for L4. Everything in the repo maps to one of these layers.
 
 | Layer | What | Where in this repo |
 | --- | --- | --- |
-| **L1** Developer defaults | Shell-init env vars (`UV_EXCLUDE_NEWER`, `NPM_CONFIG_BEFORE`, etc.) that harden every `install` from an interactive shell | The four per-ecosystem playbooks; [`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md) as the portable drop-in |
+| **L1** Developer defaults | Shell-init env vars (`UV_EXCLUDE_NEWER`, `NPM_CONFIG_BEFORE`, etc.) that harden every `install` from an interactive shell, plus your user-level and managed agent/editor settings (workspace trust, hook-loading policy) | The four per-ecosystem playbooks; [`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md) as the portable drop-in; the settings recipes in the [agent-workspace playbook](guidelines/hardening-agent-workspaces.md) |
 | **L2** Project policy | Committed lockfiles, build-script allowlists, registry pins, workspace-level config | “Step 2” of each playbook; `pnpm-workspace.yaml`, `Cargo.lock`, `uv.lock`, `go.sum` |
 | **L3** CI enforcement | Hardening env vars inside CI runners; scanner jobs that fail merge on findings; publish-pipeline hardening (read-only PR caches, SHA-pinned actions, runner egress block, OIDC/staged publishing, provenance monitoring) | “CI Enforcement” section of each playbook; the cross-ecosystem [CI/CD playbook](guidelines/hardening-ci-cd.md) |
 | **L4** Org registry / proxy | Internal mirror with quarantine and delay policy (Artifactory, Nexus, Verdaccio, devpi) | **Out of scope for hands-on guidance.** Strongest team-level control; implementations vary by org. Use a controlled `GOPROXY` and crates.io vendoring for Go and Rust. |
-| **L5** Untrusted-repo sandbox | Container or namespace-isolated execution for the first run of any third-party repo | [`guidelines/untrusted-repo-first-run.md`](guidelines/untrusted-repo-first-run.md) |
+| **L5** Untrusted-repo sandbox | Container or namespace-isolated execution for the first run of any third-party repo, plus the pre-open triage of repository-supplied agent and editor config | [`guidelines/untrusted-repo-first-run.md`](guidelines/untrusted-repo-first-run.md); the pre-open triage in the [agent-workspace playbook](guidelines/hardening-agent-workspaces.md) and [`scripts/audit_workspace.py`](scripts/audit_workspace.py) |
 | **L6** Incident response | Per-incident credential rotation, persistence checks, downgrade, audit-log entry | “If You Have Hits” sections in each playbook; [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md) |
-| **L7** Agent and editor workspace | Workspace-trust settings, hook-loading policy, and a pre-open review of repository-supplied agent config | [`guidelines/hardening-agent-workspaces.md`](guidelines/hardening-agent-workspaces.md); [`scripts/audit_workspace.py`](scripts/audit_workspace.py) |
 
 How to read the stack:
 
@@ -207,18 +252,20 @@ How to read the stack:
 - **L6** is the difference between “a malicious package landed on a developer machine”
   and “a malicious package compromised production.”
   Treat the audit log as the record; do not rely on memory.
-- **L7** is the newest layer and the only one that is not about packages at all.
-  Its controls sit in *your* user or managed settings, because the repository controls
-  everything inside itself.
+- **The agent and editor workspace is a surface, not a seventh layer.** Open-time
+  attacks are stopped by ordinary L1 controls (your user-level and managed settings,
+  which a repository cannot override) and L5 controls (pre-open triage, sandboxed first
+  runs) applied at a new surface.
+  The [agent-workspace playbook](guidelines/hardening-agent-workspaces.md) is the L1 and
+  L5 recipe for that surface.
 
-The layers assume the payload runs at install time.
-Three 2026 campaign families broke that assumption, and each needs a different layer:
+Mapping the two axes together:
 
-| Trigger | Runs when | Example | Layer that helps |
-| --- | --- | --- | --- |
-| Install-time | `npm install`, `pip install`, `cargo build` | keyv, Miasma, Shai-Hulud | L1-L4 |
-| Load-time | `require()`, `import`, or any interpreter start | node-ipc, Hades `.pth` | L1 cool-off and L5 sandbox only |
-| Open-time | A developer or agent opens the repo | Miasma/Azure, TrapDoor `CLAUDE.md` | L5 and L7 only |
+| Trigger | Example | Layer that helps |
+| --- | --- | --- |
+| Install-time | keyv, Miasma, Shai-Hulud | L1-L4 |
+| Load-time | node-ipc, Hades `.pth` | L1 cool-off and L5 sandbox only |
+| Open-time | Miasma/Azure, TrapDoor `CLAUDE.md` | L1 agent/editor settings and L5 pre-open triage only |
 
 [`guidelines/strict-mode.md`](guidelines/strict-mode.md) documents the Strict and
 Emergency-Exception modes that sit on top of the Balanced default; agents and high-risk
@@ -417,8 +464,8 @@ published yesterday that fixes a vulnerability you are exposed to), take the exc
 | uv | `exclude-newer-package = { pkg = false }` |
 | Dependabot | `cooldown.exclude` |
 
-  Delete the entry once the version ages past the window.
-  An exclude left behind turns a one-off exception into a permanent hole.
+Delete the entry once the version ages past the window.
+An exclude left behind turns a one-off exception into a permanent hole.
 
 - Otherwise install it **surgically**, via a direct tarball / wheel URL or a pinned git
   ref, rather than relaxing the gate.
@@ -479,7 +526,7 @@ At a glance:
 
 | Document | When To Update | Typical Cadence |
 | --- | --- | --- |
-| [`compromised-packages.md`](compromised-packages.md) | A notable new supply-chain incident is verified by at least two independent Tier-2 sources, or by CISA | Weeks-to-months |
+| [`compromised-packages.md`](compromised-packages.md) | A notable new supply-chain incident is verified by at least two independent Tier-2 sources, or by CISA; rows older than ~12 months age out to the recognition-only Historical section, so the active list stays capped | Weeks-to-months |
 | Hardening playbooks ([npm](guidelines/hardening-npm.md), [PyPI](guidelines/hardening-pypi.md), [Rust](guidelines/hardening-crates.md), [Go](guidelines/hardening-go.md)) | A package manager ships a relevant new control, or an existing flag or env-var name changes | Months-to-years |
 | [`guidelines/hardening-agent-workspaces.md`](guidelines/hardening-agent-workspaces.md) | An agent or editor changes its trust model, hook mechanism, or config paths | Months |
 | Research docs (in [`research/`](research/)) | An ecosystem-specific mechanism or control set changes, or a new incident merits a dedicated mechanism deep-dive | Months-to-years |

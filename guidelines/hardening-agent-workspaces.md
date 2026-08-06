@@ -1,6 +1,6 @@
 # Agent and Editor Workspace Hardening
 
-**Last updated:** 2026-08-04
+**Last updated:** 2026-08-06
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -51,6 +51,7 @@ workspace is opened:
 | --- | --- | --- |
 | `.vscode/tasks.json` | Run a shell command via `"runOn": "folderOpen"` | Opening the folder |
 | `.claude/settings.json` | `SessionStart` (and other) hooks run shell commands; `permissions.allow` widens what the agent may do | Agent session start |
+| `.codex/hooks.json` | Codex CLI hooks (`SessionStart`, `PostToolUse`, …) run shell commands, same schema as Claude Code hooks | Agent session start |
 | `.mcp.json` | Declares MCP servers the agent launches as subprocesses | Agent start / server approval |
 | `.devcontainer/devcontainer.json` | `postCreateCommand`, `postStartCommand`, `postAttachCommand`, `initializeCommand` | Container create / attach |
 | `.vscode/settings.json` | Repoints interpreter, formatter, or linter paths at in-repo binaries | First use of that tool |
@@ -64,7 +65,7 @@ own already-granted permissions.
 That is why zero-width Unicode matters: the text is invisible in a normal editor and in
 a GitHub diff view, but the model reads it.
 
-## Hardening (Ten-Minute Setup)
+## Setup
 
 ### Step 1: Do Not Let the Editor Auto-Run Anything
 
@@ -129,6 +130,12 @@ On a machine with publish tokens or production access, go further with managed s
 For MCP servers, leave `enableAllProjectMcpServers` **off** so a committed `.mcp.json`
 cannot auto-approve subprocesses; approve specific servers with `enabledMcpjsonServers`.
 
+Claude Code is not the only agent that reads hooks from the repository: the Codex CLI
+loads the same hook schema from a committed `.codex/hooks.json`. The policy is the same
+whatever the agent: a repo-supplied hook file is untrusted input, so read it before the
+agent’s first session in that repo.
+`audit_workspace.py` reports hooks from both locations.
+
 ### Step 3: Triage Before You Open
 
 For any repository you did not write, inspect the open-time surface **before** opening
@@ -151,19 +158,19 @@ To do it by hand, the four commands that matter:
 
 ```sh
 # 1. Autostart configs and agent instruction files, if any exist.
-ls -la .vscode/ .claude/ .devcontainer/ 2>/dev/null
-cat .vscode/tasks.json .claude/settings.json .mcp.json 2>/dev/null
+ls -la .vscode/ .claude/ .codex/ .devcontainer/ 2>/dev/null
+cat .vscode/tasks.json .claude/settings.json .codex/hooks.json .mcp.json 2>/dev/null
 
 # 2. Anything that runs on open.
 grep -rn 'folderOpen\|postCreateCommand\|postStartCommand\|postAttachCommand\|initializeCommand\|SessionStart' \
-  .vscode/ .claude/ .devcontainer/ 2>/dev/null
+  .vscode/ .claude/ .codex/ .devcontainer/ 2>/dev/null
 
 # 3. Invisible Unicode in agent instruction files (see the caveat below).
 LC_ALL=C.UTF-8 grep -rlP '[\x{200B}\x{200C}\x{200D}\x{FEFF}\x{2060}\x{00AD}]' \
   --include='*.md' --include='.cursorrules' --include='*.mdc' . 2>/dev/null
 
 # 4. Recently-added agent config, which is the anomaly worth reading.
-git log --oneline -20 -- .claude/ .vscode/ .devcontainer/ .mcp.json CLAUDE.md AGENTS.md .cursorrules
+git log --oneline -20 -- .claude/ .codex/ .vscode/ .devcontainer/ .mcp.json CLAUDE.md AGENTS.md .cursorrules
 ```
 
 > **The `LC_ALL=C.UTF-8` prefix is required, not decoration.** In a `LANG=`-unset or
@@ -219,7 +226,8 @@ Run across every repository you have opened, not just the one you suspect:
 ```sh
 # Autostart configs in any checkout under ~/src (adjust the root).
 find ~/src -maxdepth 3 \( -path '*/.vscode/tasks.json' -o -path '*/.claude/settings.json' \
-  -o -path '*/.devcontainer/devcontainer.json' -o -name '.mcp.json' \) 2>/dev/null \
+  -o -path '*/.codex/hooks.json' -o -path '*/.devcontainer/devcontainer.json' \
+  -o -name '.mcp.json' \) 2>/dev/null \
   | xargs grep -ln 'folderOpen\|SessionStart\|postCreateCommand\|curl\|wget\|bun\|eval' 2>/dev/null
 ```
 
@@ -263,9 +271,9 @@ consistent regardless of which vector was hit.
    remove the watcher, its unit file, and its state directory (see the IOC list in Step
    2). Only then proceed to rotation, and do it from a **different, clean machine**.
 4. **Check persistence mechanisms specific to this payload.** Repo-level:
-   `.claude/settings.json`, `.vscode/tasks.json`, `.devcontainer/`, `.mcp.json`.
-   Host-level: LaunchAgents (`~/Library/LaunchAgents`), systemd user units (plus
-   `loginctl enable-linger` state), `crontab -l`, shell rc files.
+   `.claude/settings.json`, `.codex/hooks.json`, `.vscode/tasks.json`, `.devcontainer/`,
+   `.mcp.json`. Host-level: LaunchAgents (`~/Library/LaunchAgents`), systemd user units
+   (plus `loginctl enable-linger` state), `crontab -l`, shell rc files.
    Registry-level: `gh api /user/runners` for self-hosted runners.
 5. **Revoke, do not merely rotate.** npm and GitHub tokens must be *revoked* so the old
    value stops working; cloud (AWS/GCP/Azure), Vault, Kubernetes, and CI org/repo
@@ -312,7 +320,7 @@ Two controls carry most of the weight:
 - name: Guard agent and editor autostart config
   run: |
     changed=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)
-    if echo "$changed" | grep -qE '^(\.vscode/tasks\.json|\.claude/settings\.json|\.mcp\.json|\.devcontainer/)'; then
+    if echo "$changed" | grep -qE '^(\.vscode/tasks\.json|\.claude/settings\.json|\.codex/|\.mcp\.json|\.devcontainer/)'; then
       echo "::error::PR modifies open-time execution surface; requires manual review"
       exit 1
     fi
@@ -322,9 +330,9 @@ Two controls carry most of the weight:
   run: python3 scripts/audit_workspace.py --only unicode .
 ```
 
-Require a `CODEOWNERS` entry for `.claude/`, `.vscode/`, `.devcontainer/`, `.mcp.json`,
-`CLAUDE.md`, `AGENTS.md`, and `.cursorrules` so these paths cannot be changed without a
-named reviewer.
+Require a `CODEOWNERS` entry for `.claude/`, `.codex/`, `.vscode/`, `.devcontainer/`,
+`.mcp.json`, `CLAUDE.md`, `AGENTS.md`, and `.cursorrules` so these paths cannot be
+changed without a named reviewer.
 
 ## Keeping a Supply Chain Audit Log
 

@@ -9,7 +9,7 @@ supply-chain attacks, and to check whether you have already been compromised.
 Full threat model, per-platform setup, IOC feeds, and scanning tools in
 [research-crates-supply-chain-hardening.md](../research/research-crates-supply-chain-hardening.md).
 
-## Hardening (Ten-Minute Setup)
+## Setup
 
 ### Step 1: Always Use `--locked`
 

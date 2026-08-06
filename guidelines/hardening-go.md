@@ -9,7 +9,7 @@ supply-chain attacks, and to check whether you have already been compromised.
 Full threat model, incident timeline, and scanning-tool comparisons in
 [research-go-supply-chain-hardening.md](../research/research-go-supply-chain-hardening.md).
 
-## Hardening (Ten-Minute Setup)
+## Setup
 
 ### Step 0: Keep the Go Toolchain Current
 

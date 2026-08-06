@@ -1,6 +1,6 @@
 # PyPI Operational Hardening
 
-**Last updated:** 2026-08-04
+**Last updated:** 2026-08-06
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -22,7 +22,7 @@ tokens and follow [`hardening-ci-cd.md`](hardening-ci-cd.md).
 > `PIP_ONLY_BINARY`, `--no-build`, and `UV_NO_BUILD` do nothing about it.
 > See [Step 5](#step-5-audit-pth-interpreter-startup-hooks).
 
-## Hardening (Ten-Minute Setup)
+## Setup
 
 ### Step 1: Create the Hardening Script
 
@@ -400,8 +400,8 @@ consistent regardless of which registry was hit.
    against **every** virtualenv, not just the active one.
    Also check `systemctl --user list-unit-files --state=enabled` (LiteLLM added a
    systemd backdoor), running processes and CPU history (Ultralytics installed an XMRig
-   miner), and the repository itself for planted `.claude/` or `.vscode/` autostart
-   config ([`hardening-agent-workspaces.md`](hardening-agent-workspaces.md)).
+   miner), and the repository itself for planted `.claude/`, `.codex/`, or `.vscode/`
+   autostart config ([`hardening-agent-workspaces.md`](hardening-agent-workspaces.md)).
 5. **Remove or downgrade the affected dependency.** Pin to the last known-good version
    in `pyproject.toml` / `requirements.txt` / `uv.lock`.
 6. **Regenerate lockfile from trusted sources.** `uv lock` (or

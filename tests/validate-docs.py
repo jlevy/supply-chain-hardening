@@ -6,9 +6,14 @@
 #
 # validate-docs.py
 #
-# Lint pass for the markdown corpus of this repo. Today it checks one thing:
-# every package-manager environment-variable name that appears in the docs is
-# either in tests/known-env-vars.txt or matches a documented escape hatch.
+# Lint pass for the markdown corpus of this repo. Three checks:
+#   1. Every package-manager environment-variable name in the docs is in
+#      tests/known-env-vars.txt or a documented escape hatch.
+#   2. Stale-policy and rendering regressions (POLICY_PATTERNS below).
+#   3. Dated "Last updated" stamps appear on exactly the currency-sensitive
+#      pages (DATED_DOCS below): a stamp on an evergreen page goes stale and
+#      misleads; a missing stamp on a dated page hides how old its
+#      version-specific claims are.
 #
 # Why this exists: UV_ONLY_BINARY shipped in the docs for months before review
 # caught it as a non-existent uv env var. An allow-list catches that whole
@@ -86,6 +91,63 @@ def find_policy_violations(path: Path) -> list[tuple[int, str]]:
                 violations.append((lineno, message))
     return violations
 
+
+# Pages whose version-specific or incident-specific claims rot, and which
+# therefore carry a dated "**Last updated:**" header. Evergreen methodology
+# pages (README, strict-mode, untrusted-repo-first-run, ...) deliberately do
+# not, so a reader can tell which pages age. Policy is documented in
+# self-update-instructions.md; keep the two in sync.
+DATED_DOCS = {
+    "compromised-packages.md",
+    "self-update-instructions.md",
+    "supply-chain-audit-log-template.md",  # template placeholder date
+    "guidelines/hardening-npm.md",
+    "guidelines/hardening-pypi.md",
+    "guidelines/hardening-crates.md",
+    "guidelines/hardening-go.md",
+    "guidelines/hardening-ci-cd.md",
+    "guidelines/hardening-agent-workspaces.md",
+    "research/research-npm-supply-chain-hardening.md",
+    "research/research-pypi-supply-chain-hardening.md",
+    "research/research-crates-supply-chain-hardening.md",
+    "research/research-go-supply-chain-hardening.md",
+}
+
+# Broader than SCAN_GLOBS: the stamp policy covers every doc in the repo.
+STAMP_SCAN_GLOBS = ["*.md", "guidelines/*.md", "research/*.md", "scripts/*.md", "tests/*.md"]
+
+LAST_UPDATED_RE = re.compile(r"^\*\*Last updated:\*\*")
+
+
+def find_stamp_violations() -> list[tuple[Path, int, str]]:
+    violations: list[tuple[Path, int, str]] = []
+    seen: set[Path] = set()
+    for pattern in STAMP_SCAN_GLOBS:
+        for path in sorted(REPO_ROOT.glob(pattern)):
+            if not path.is_file() or path in seen:
+                continue
+            seen.add(path)
+            rel = str(path.relative_to(REPO_ROOT))
+            stamp_line = 0
+            for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if LAST_UPDATED_RE.match(line):
+                    stamp_line = lineno
+                    break
+            if rel in DATED_DOCS and not stamp_line:
+                violations.append(
+                    (path, 1, "currency-sensitive page is missing its '**Last updated:**' stamp")
+                )
+            elif rel not in DATED_DOCS and stamp_line:
+                violations.append(
+                    (
+                        path,
+                        stamp_line,
+                        "evergreen page carries a 'Last updated' stamp "
+                        "(reserved for dated pages; see self-update-instructions.md)",
+                    )
+                )
+    return violations
+
 # Explicit allow-list of names that show up in docs but are NOT canonical
 # package-manager env vars (e.g. ad-hoc shell-script intermediaries).
 PROSE_EXEMPT = {
@@ -134,6 +196,7 @@ def main() -> int:
             seen_unknown.setdefault(name, []).append((path, lineno))
         for lineno, message in find_policy_violations(path):
             policy_hits.append((path, lineno, message))
+    policy_hits.extend(find_stamp_violations())
 
     if not seen_unknown and not policy_hits:
         print(f"validate-docs.py: OK ({len(allowed)} known env vars, all docs clean)")

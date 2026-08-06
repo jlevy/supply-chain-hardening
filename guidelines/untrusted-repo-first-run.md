@@ -1,7 +1,5 @@
 # Untrusted Repo First Run
 
-**Last updated:** 2026-08-04
-
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
 Before you run `install`, `build`, or `test` on a freshly cloned third-party repo, treat
@@ -127,7 +125,7 @@ Confirm none of the following are present inside the sandbox:
 | Python (wheel) | Module top-level code at `import` time. **Also `.pth` files at every interpreter startup**, with no import and no build, which is how the June 2026 Hades campaign ran | No install-time control stops either. Audit `.pth` files (`hardening-pypi.md` → Step 5); isolate at import |
 | Rust | `build.rs` at any `cargo build`, `cargo check`, `cargo test`, or `cargo run`; proc-macros at compile time | No flag disables `build.rs`; read it, or build in a sandbox |
 | Go | Test files at any `go test ./...`. No install-time hooks; `go build` itself does not run module code | `-mod=readonly` does not stop test execution; use sandbox for tests |
-| Any (editor / agent) | `.vscode/tasks.json` `folderOpen` tasks, `.claude/settings.json` hooks, `.devcontainer` lifecycle commands, `.mcp.json` servers, at **folder open** | Workspace trust plus a pre-open review; see [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md) |
+| Any (editor / agent) | `.vscode/tasks.json` `folderOpen` tasks, `.claude/settings.json` and `.codex/hooks.json` hooks, `.devcontainer` lifecycle commands, `.mcp.json` servers, at **folder open** | Workspace trust plus a pre-open review; see [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md) |
 
 ## When To Skip the Sandbox
 

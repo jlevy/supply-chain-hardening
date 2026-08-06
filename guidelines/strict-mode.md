@@ -1,7 +1,5 @@
 # Strict, Balanced, and Emergency-Exception Modes
 
-**Last updated:** 2026-08-04
-
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
 The per-ecosystem playbooks are written for the Balanced default.

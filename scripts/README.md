@@ -77,16 +77,22 @@ version. Companion guide:
 Four independent checks:
 
 - **`autostart`:** editor and agent config that runs a command on open.
-  `.vscode/tasks.json` (`runOn: folderOpen`), `.claude/settings.json` hooks,
-  `.devcontainer` lifecycle commands, `.mcp.json` servers, `.envrc`, plus known loader
-  filenames (`setup.mjs`, `Math_Symbol.js`, `trap-core.js`).
+  `.vscode/tasks.json` (`runOn: folderOpen`), `.claude/settings.json` and
+  `.codex/hooks.json` hooks, `.devcontainer` lifecycle commands, `.mcp.json` servers,
+  `.envrc`, plus known loader filenames (`setup.mjs`, `Math_Symbol.js`, `trap-core.js`).
+  Handles VS Code JSONC (comments and trailing commas).
 - **`unicode`:** invisible and bidirectional code points in agent instruction files
-  (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `.cursor/rules/*.mdc`), the vector the May
-  2026 TrapDoor campaign used to hide instructions from human reviewers.
+  (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `.cursor/rules/*.mdc`, and skill files
+  under `.claude/` and `.agents/`), the vector the May 2026 TrapDoor campaign used to
+  hide instructions from human reviewers.
 - **`pth`:** Python `.pth` files that execute code at interpreter startup, the June 2026
-  Hades vector. `distutils-precedence.pth` and `__editable__.*` are allow-listed and
-  reported as informational.
+  Hades vector. Matches CPython `site.py` semantics (raw-line `import` check).
+  `distutils-precedence.pth` and `__editable__.*` are allow-listed and reported as
+  informational.
 - **`host`:** the 2026-08-04 keyv worm’s `gh-token-monitor` token-revocation watcher.
+  This check inspects the current user’s **home directory** and is independent of the
+  target path: `audit_workspace.py ./some-repo` still reports machine-wide host
+  persistence, by design (host artifacts are global, not per-repo).
 
 Usage:
 

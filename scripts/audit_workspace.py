@@ -20,7 +20,8 @@
 #
 #     autostart  Editor and agent configs that execute a command on open
 #                (.vscode/tasks.json runOn:folderOpen, .claude/settings.json
-#                SessionStart hooks, .devcontainer postCreateCommand, .mcp.json)
+#                and .codex/hooks.json hooks, .devcontainer postCreateCommand,
+#                .mcp.json)
 #     unicode    Invisible / bidirectional Unicode in agent instruction files
 #                (CLAUDE.md, AGENTS.md, .cursorrules), the TrapDoor vector
 #     pth        Python .pth files that execute code at interpreter startup,
@@ -97,6 +98,7 @@ AGENT_INSTRUCTION_GLOBS = (
     ".claude/commands/*.md",
     ".claude/agents/*.md",
     ".claude/skills/**/*.md",
+    ".agents/**/*.md",  # cross-agent skills convention, e.g. .agents/skills/*/SKILL.md
 )
 
 # devcontainer.json keys that run a shell command as part of opening the folder.
@@ -164,11 +166,14 @@ def read_text(path: Path) -> str | None:
 
 
 def load_jsonc(text: str) -> object | None:
-    """Parse JSON that may contain // and /* */ comments, as VS Code allows.
+    """Parse JSON that may contain // and /* */ comments and trailing commas,
+    as VS Code allows in its JSONC config files.
 
-    Strips comments outside string literals, then falls back to None if the
-    result still does not parse. A config we cannot parse is reported by the
-    caller rather than silently skipped.
+    Strips comments and trailing commas outside string literals, then falls
+    back to None if the result still does not parse. A config we cannot parse
+    is reported by the caller rather than silently skipped. Trailing commas
+    matter: a malicious tasks.json that is valid JSONC but not strict JSON
+    must not downgrade from a HIGH autostart finding to an INFO parse failure.
     """
     out: list[str] = []
     in_string = False
@@ -205,6 +210,14 @@ def load_jsonc(text: str) -> object | None:
             else:
                 if ch == '"':
                     in_string = True
+                elif ch in "}]":
+                    # Drop a comma directly preceding this closer (with only
+                    # whitespace between): the JSONC trailing comma.
+                    j = len(out) - 1
+                    while j >= 0 and out[j] in " \t\r\n":
+                        j -= 1
+                    if j >= 0 and out[j] == ",":
+                        del out[j]
                 out.append(ch)
         i += 1
     try:
@@ -268,8 +281,14 @@ def check_autostart(root: Path) -> list[Finding]:
                         )
                     )
 
-    for settings_name in ("settings.json", "settings.local.json"):
-        settings_path = root / ".claude" / settings_name
+    # Codex CLI reads the same hooks schema from .codex/hooks.json, so one loop
+    # covers both agents; the permissions block simply never appears for Codex.
+    agent_settings_paths = (
+        root / ".claude" / "settings.json",
+        root / ".claude" / "settings.local.json",
+        root / ".codex" / "hooks.json",
+    )
+    for settings_path in agent_settings_paths:
         if not settings_path.is_file():
             continue
         text = read_text(settings_path)
@@ -479,10 +498,13 @@ def check_pth(root: Path, scan_site: bool) -> list[Finding]:
             text = read_text(path)
             if text is None:
                 continue
+            # Match site.py's semantics exactly: CPython tests the RAW line
+            # (no strip), so an indented "import" is a path entry that never
+            # executes. Stripping here would flag lines Python ignores.
             executable_lines = [
                 line
                 for line in text.splitlines()
-                if line.strip().startswith(("import ", "import\t"))
+                if line.startswith(("import ", "import\t"))
             ]
             if not executable_lines:
                 continue
@@ -507,6 +529,11 @@ def check_pth(root: Path, scan_site: bool) -> list[Finding]:
 
 
 def check_host() -> list[Finding]:
+    """Look for known host-level persistence under the current user's home.
+
+    Deliberately independent of the PATH argument: host artifacts are global,
+    so `audit_workspace.py ./some-repo` still reports them.
+    """
     findings: list[Finding] = []
     for raw in KEYV_HOST_ARTIFACTS:
         path = Path(os.path.expanduser(raw))
@@ -575,7 +602,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Exit codes: 0 clean, 1 informational findings, 2 error, 3 HIGH findings.\n"
-            "Read-only: never edits, deletes, or executes anything it finds."
+            "Read-only: never edits, deletes, or executes anything it finds.\n"
+            "The host check inspects the current user's home directory and is\n"
+            "independent of PATH; scanning ./some-repo still reports host persistence."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

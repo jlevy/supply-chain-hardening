@@ -1,6 +1,6 @@
 # CI/CD and Publish-Pipeline Hardening
 
-**Last updated:** 2026-08-04
+**Last updated:** 2026-08-06
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -46,8 +46,8 @@ Miasma pushed a commit to `Azure/durabletask` that planted a `.claude/settings.j
 `SessionStart` hook, so the payload ran for anyone who *opened* the repo.
 GitHub disabled 73 Microsoft repositories in response.
 Protect the paths that execute on open the same way you protect release workflows: a
-`CODEOWNERS` entry for `.github/workflows/`, `.claude/`, `.vscode/`, `.devcontainer/`,
-and `.mcp.json`, plus branch protection that requires that review.
+`CODEOWNERS` entry for `.github/workflows/`, `.claude/`, `.codex/`, `.vscode/`,
+`.devcontainer/`, and `.mcp.json`, plus branch protection that requires that review.
 See [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md).
 
 ## Control 1: Lock Down PR-Triggered Workflows
@@ -195,10 +195,10 @@ Remove the standing token.
 | `npm login` issues a 2-hour session token | 2025-12-09 | Interactive publishing re-authenticates; a leaked session is short-lived |
 | Granular write tokens capped at 90 days | 2025-12-09 | Any long-lived publish credential in CI has an expiry you must rotate around |
 
-  A CI pipeline still carrying a `NODE_AUTH_TOKEN` is now either broken or running on a
-  granular token with at most 90 days of life.
-  Either way the migration target is OIDC trusted publishing above, not a longer-lived
-  token.
+A CI pipeline still carrying a `NODE_AUTH_TOKEN` is now either broken or running on a
+granular token with at most 90 days of life.
+Either way the migration target is OIDC trusted publishing above, not a longer-lived
+token.
 
 - **Turn on npm staged publishing** (GA 2026-05-20; npm CLI >= 11.15.0).
   `npm stage publish` submits to a staging area from CI without 2FA; a maintainer must
@@ -287,6 +287,13 @@ References:
 
 ## Verification Checklist
 
+Audit existing workflows with a static analyzer rather than by eye:
+[`zizmor`](https://github.com/zizmorcore/zizmor) detects the `pull_request_target`,
+template-injection, unpinned-action, and cache-poisoning patterns behind Controls 1-4,
+and runs locally or as a CI gate.
+Pointing at it follows the same philosophy as the rest of this repo: use the systems of
+record and the dedicated tools instead of reimplementing their checks.
+
 - [ ] Every workflow file has a top-level `permissions: contents: read`; write scopes
   are per-job.
 - [ ] No `pull_request_target` workflow checks out or runs PR head code.
@@ -306,6 +313,7 @@ References:
 
 ## Sources
 
+- [zizmor: static analysis for GitHub Actions workflows](https://github.com/zizmorcore/zizmor)
 - [GitHub Security Lab: Preventing pwn requests](https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/)
 - [GitHub docs: Controlling permissions for GITHUB_TOKEN](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token)
 - [SafeDep: TanStack GitHub Actions cache poisoning](https://safedep.io/tanstack-github-actions-cache-poisoning/)
