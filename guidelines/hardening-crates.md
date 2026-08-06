@@ -1,6 +1,6 @@
 # crates.io Operational Hardening
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-08-04
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -9,7 +9,7 @@ supply-chain attacks, and to check whether you have already been compromised.
 Full threat model, per-platform setup, IOC feeds, and scanning tools in
 [research-crates-supply-chain-hardening.md](../research/research-crates-supply-chain-hardening.md).
 
-## Hardening (Ten-Minute Setup)
+## Setup
 
 ### Step 1: Always Use `--locked`
 
@@ -27,13 +27,13 @@ cargo run --locked
 Without `--locked`, `cargo install` ignores the packaged `Cargo.lock` entirely and
 re-resolves from scratch.
 
-### Step 2: Commit `Cargo.lock` (For Applications And Binaries)
+### Step 2: Commit `Cargo.lock` (For Applications and Binaries)
 
 Libraries traditionally gitignore `Cargo.lock`. Applications and binaries should commit
 it. A committed lockfile combined with `--locked` pins the exact dependency tree the
 author tested.
 
-### Step 3: Install `cargo-audit` And `cargo-deny`
+### Step 3: Install `cargo-audit` and `cargo-deny`
 
 ```sh
 cargo install --locked cargo-audit
@@ -77,7 +77,7 @@ cargo deny check             # all checks pass
 cargo vet                    # all dependencies vetted or exempted
 ```
 
-### Step 6: When You Intentionally Need An Unvetted Crate
+### Step 6: When You Intentionally Need an Unvetted Crate
 
 crates.io has no release-age gate (see the README layered model), so the exception is
 about *review*, not bypassing a cool-off.
@@ -101,7 +101,7 @@ pinned to the reviewed tag so the source stays auditable:
 some-crate = { git = "https://github.com/<org>/<repo>", tag = "v<version>" }
 ```
 
-#### Then Certify Or Exempt
+#### Then Certify or Exempt
 
 Two distinct flows; do not mix them:
 
@@ -116,7 +116,7 @@ Either way, log the decision in `supply-chain-audit-log.md` per the
 [exception process](../README.md#the-exception-process): the reason, the exact
 `crate@version`, the verified checksum, and a `Reviewed-by:` sign-off.
 
-### Step 7: Watch `build.rs` And Proc-Macro Crates
+### Step 7: Watch `build.rs` and Proc-Macro Crates
 
 Compile-time code execution in Rust comes from two places.
 Both run with full filesystem and network access whenever you `cargo build` / `check` /
@@ -129,8 +129,8 @@ Both run with full filesystem and network access whenever you `cargo build` / `c
 - **Proc-macros**: any crate whose `Cargo.toml` declares `proc-macro = true` runs at
   compile time. A proc-macro that does anything besides token-tree manipulation (file
   I/O, network, subprocess) is a red flag.
-  Common legitimate examples: `serde_derive`, `tokio-macros`, `proc-macro2` — all
-  stable, widely-used, inspected.
+  Common legitimate examples: `serde_derive`, `tokio-macros`, `proc-macro2`—all stable,
+  widely-used, inspected.
 
 `cargo-vet`’s `safe-to-deploy` claims explicitly cover compile-time code; treat unvetted
 `build.rs` and proc-macro crates with extra scrutiny.
@@ -166,15 +166,18 @@ osv-scanner scan source -r .
 cargo audit
 ```
 
-### Step 2: Grep For Known IOCs From The Most Recent Named Attacks
+### Step 2: Grep For Known IOCs From the Most Recent Named Attacks
 
-The most relevant crates.io attacks as of 2026-05-23 (no new incidents in May 2026; the
-npm/PyPI worms did not reach crates.io).
+The most relevant crates.io attacks as of 2026-08-04. crates.io remains far less
+frequently hit than npm or PyPI, and the Shai-Hulud worm family has not reached it, but
+the May 2026 TrapDoor campaign was the first to target all three registries at once with
+per-runtime payloads, using `build.rs` for the Rust leg.
 The cross-ecosystem table is in [`compromised-packages.md`](../compromised-packages.md);
 this is the crates.io quick-grep extract:
 
 | Date | Name | Quick IOC Pattern |
 | --- | --- | --- |
+| 2026-05-19 | TrapDoor | `sui-move-build-helper`, `sui-framework-helpers`, `sui-sdk-build-utils`, `move-analyzer-build`, `move-compiler-tools`, `move-project-builder`. `build.rs` fires at `cargo build`; XOR key `cargo-build-helper-2026`; exfil to GitHub Gists |
 | 2026-04 | mysten-metrics | `mysten-metrics@9.0.3` |
 | 2026-02/03 | Time-utility campaign | `chrono_anchor`, `dnp3times`, `time_calibrator`, `time_calibrators`, `time-sync` |
 | 2025-12 | evm-units / uniswap-utils | `evm-units` (all versions by user `ablerust`), `uniswap-utils` (all versions) |
@@ -233,7 +236,7 @@ consistent regardless of which registry was hit.
    Record raw findings, analysis, every action with timestamps, and any pending
    follow-ups. Redact live credentials per the template’s Redaction Rules.
 
-## Keeping A Supply Chain Audit Log
+## Keeping a Supply Chain Audit Log
 
 Follow the same audit-log discipline described in
 [hardening-npm.md](hardening-npm.md#keeping-a-supply-chain-audit-log).
@@ -294,6 +297,6 @@ For early warning of new named attacks:
 - [Socket.dev](https://socket.dev/)
 - [Datadog Security Labs](https://securitylabs.datadoghq.com/)
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

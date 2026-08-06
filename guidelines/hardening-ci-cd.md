@@ -1,6 +1,6 @@
-# CI/CD And Publish-Pipeline Hardening
+# CI/CD and Publish-Pipeline Hardening
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-08-06
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -20,7 +20,7 @@ attached.
 See [`../compromised-packages.md`](../compromised-packages.md) for the incident
 table.
 
-## Why The Install-Side Controls Are Not Enough Here
+## Why the Install-Side Controls Are Not Enough Here
 
 Release-age delay, `ignore-scripts`, and a frozen lockfile protect *consumers* of a
 package. They do nothing for the *publisher*. If your release workflow can be tricked
@@ -39,6 +39,16 @@ The kill chain in these incidents:
    provenance, then self-propagate to every package the stolen token can reach.
 
 Each control below breaks one of those links.
+
+Since June 2026 there is a fourth link worth naming, because it does not involve the
+registry at all. Megalodon injected malicious workflows into ~5,561 repositories, and
+Miasma pushed a commit to `Azure/durabletask` that planted a `.claude/settings.json`
+`SessionStart` hook, so the payload ran for anyone who *opened* the repo.
+GitHub disabled 73 Microsoft repositories in response.
+Protect the paths that execute on open the same way you protect release workflows: a
+`CODEOWNERS` entry for `.github/workflows/`, `.claude/`, `.codex/`, `.vscode/`,
+`.devcontainer/`, and `.mcp.json`, plus branch protection that requires that review.
+See [`hardening-agent-workspaces.md`](hardening-agent-workspaces.md).
 
 ## Control 1: Lock Down PR-Triggered Workflows
 
@@ -68,7 +78,7 @@ It is the single most exploited GitHub Actions primitive.
 Reference:
 [GitHub Security Lab, Preventing pwn requests](https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/).
 
-## Control 2: Make The Actions Cache Read-Only On PRs
+## Control 2: Make the Actions Cache Read-Only On PRs
 
 The TanStack compromise poisoned the shared Actions cache from a `pull_request_target`
 run, then a later release workflow on `main` restored the poisoned entry.
@@ -106,7 +116,7 @@ Workflow permissions -> “Read repository contents and packages permissions”*
 Reference:
 [GitHub docs, Controlling permissions for GITHUB_TOKEN](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token).
 
-## Control 4: Pin Actions To A Commit SHA, Not A Tag
+## Control 4: Pin Actions To a Commit SHA, Not a Tag
 
 Tags are mutable. The `tj-actions/changed-files` (2025) and `trivy-action` (2026)
 compromises moved a tag to point at malicious code; everyone tracking the tag pulled it
@@ -121,7 +131,7 @@ incidents in the table.
 Let Dependabot or Renovate propose SHA bumps so updates are reviewable diffs.
 Apply this to transitive actions (actions called by your actions) too.
 
-## Control 5: Harden The Runner (Egress Block + No Privilege Escalation)
+## Control 5: Harden the Runner (Egress Block and No Privilege Escalation)
 
 The payloads in these incidents exfiltrated over arbitrary egress and escalated via
 `sudo` / Docker.
@@ -174,9 +184,21 @@ Remove the standing token.
 - **Gate the publish behind a GitHub Environment with required reviewers** and “Prevent
   self-reviews” enabled, so even an OIDC-authenticated run waits for human approval.
 
-- **If you must keep a token, make it granular** (npm removed legacy account-wide tokens
-  in November 2025): scope it to a single package, set an expiry, and keep
-  `bypass-2fa: false`.
+- **If you must keep a token, make it granular:** scope it to a single package, set an
+  expiry, and keep `bypass-2fa: false`. npm has closed off the alternatives, so treat
+  these as constraints rather than recommendations:
+
+| Change | Effective | Consequence |
+| --- | --- | --- |
+| Classic token creation disabled | 2025-11-05 | No new account-wide tokens |
+| Classic tokens permanently revoked | 2025-12-09 | Existing ones stopped working and cannot be recreated |
+| `npm login` issues a 2-hour session token | 2025-12-09 | Interactive publishing re-authenticates; a leaked session is short-lived |
+| Granular write tokens capped at 90 days | 2025-12-09 | Any long-lived publish credential in CI has an expiry you must rotate around |
+
+A CI pipeline still carrying a `NODE_AUTH_TOKEN` is now either broken or running on a
+granular token with at most 90 days of life.
+Either way the migration target is OIDC trusted publishing above, not a longer-lived
+token.
 
 - **Turn on npm staged publishing** (GA 2026-05-20; npm CLI >= 11.15.0).
   `npm stage publish` submits to a staging area from CI without 2FA; a maintainer must
@@ -185,14 +207,30 @@ Remove the standing token.
 
 References: [npm Trusted publishers](https://docs.npmjs.com/trusted-publishers/);
 [npm Staged publishing](https://docs.npmjs.com/staged-publishing/);
-[GitHub changelog, staged publishing + install-time controls](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/).
+[GitHub changelog, staged publishing and install-time controls](https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/);
+[GitHub changelog, classic token creation disabled](https://github.blog/changelog/2025-11-05-npm-security-update-classic-token-creation-disabled-and-granular-token-changes/);
+[GitHub changelog, classic tokens revoked and session-based auth](https://github.blog/changelog/2025-12-09-npm-classic-tokens-revoked-session-based-auth-and-cli-token-management-now-available/).
 
-## Control 7: Treat Provenance As A Signal, Not Proof
+## Control 7: Treat Provenance As a Signal, Not Proof
 
 The 2026-05-19 @antv worm was the first to forge valid Sigstore / SLSA provenance: it
 called Fulcio and Rekor at runtime, so infected packages displayed a green “verified”
 badge. A valid attestation confirms *which pipeline* produced the artifact, not that the
 pipeline was uncompromised.
+
+By August 2026 this was standard tradecraft rather than a novelty, across three
+independent campaigns:
+
+| Date | Campaign | How the attestation verified |
+| --- | --- | --- |
+| 2026-05-19 | @antv | Called Fulcio and Rekor at runtime to mint fresh certificates |
+| 2026-06-01 | Miasma | Republished with stolen GitHub OIDC tokens, producing genuine SLSA attestations |
+| 2026-06-03 | IronWorm | Abused npm Trusted Publishing (OIDC) from compromised developer identities |
+| 2026-08-04 | keyv / cacheable | Generated DSSE envelopes with Fulcio certificates and Rekor entries via the npm OIDC token-exchange endpoint |
+
+The common thread is that none of these forged a signature.
+They obtained a legitimate one, which is why signature verification cannot detect them
+and why transparency-log monitoring of your *own* identities is the control that does.
 
 - **Verify provenance, but do not stop there.** `npm audit signatures` (npm >= 9.5.0)
   checks registry signatures and attestations.
@@ -249,6 +287,13 @@ References:
 
 ## Verification Checklist
 
+Audit existing workflows with a static analyzer rather than by eye:
+[`zizmor`](https://github.com/zizmorcore/zizmor) detects the `pull_request_target`,
+template-injection, unpinned-action, and cache-poisoning patterns behind Controls 1-4,
+and runs locally or as a CI gate.
+Pointing at it follows the same philosophy as the rest of this repo: use the systems of
+record and the dedicated tools instead of reimplementing their checks.
+
 - [ ] Every workflow file has a top-level `permissions: contents: read`; write scopes
   are per-job.
 - [ ] No `pull_request_target` workflow checks out or runs PR head code.
@@ -268,6 +313,7 @@ References:
 
 ## Sources
 
+- [zizmor: static analysis for GitHub Actions workflows](https://github.com/zizmorcore/zizmor)
 - [GitHub Security Lab: Preventing pwn requests](https://securitylab.github.com/resources/github-actions-preventing-pwn-requests/)
 - [GitHub docs: Controlling permissions for GITHUB_TOKEN](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token)
 - [SafeDep: TanStack GitHub Actions cache poisoning](https://safedep.io/tanstack-github-actions-cache-poisoning/)
@@ -282,6 +328,6 @@ References:
 - [Microsoft Security: Mini Shai-Hulud, compromised @antv npm packages](https://www.microsoft.com/en-us/security/blog/2026/05/20/mini-shai-hulud-compromised-antv-npm-packages-enable-ci-cd-credential-theft/)
 - [TanStack postmortem](https://tanstack.com/blog/npm-supply-chain-compromise-postmortem)
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

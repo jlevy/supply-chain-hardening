@@ -1,6 +1,6 @@
 # PyPI Supply Chain Hardening
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-08-04
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -13,8 +13,8 @@ scanning tools.
 The doc has three parts:
 
 1. **Background**: why this matters and the pattern these attacks share.
-2. **Notable Exploits**: the named incidents from 2022 through May 2026, with affected
-   packages and dates so you can spot-check installed environments.
+2. **Notable Exploits**: the named incidents from 2022 through August 2026, with
+   affected packages and dates so you can spot-check installed environments.
 3. **Best Practices for Hardening**: copy-pasteable configuration for every major Python
    package manager, broken out by platform and shell.
 
@@ -47,7 +47,7 @@ build system allows arbitrary code execution during `pip install` of source
 distributions (sdists), and Python has historically lacked the lockfile-and-hash-pinning
 culture that npm’s `package-lock.json` provides.
 
-## What The Attacks Have In Common
+## What the Attacks Have In Common
 
 Across the named incidents in this document, the playbook collapses to four primitives:
 
@@ -314,6 +314,104 @@ Kubernetes via `kubectl exec`.
 [SafeDep](https://safedep.io/malicious-durabletask-pypi-supply-chain-attack/);
 [StepSecurity](https://www.stepsecurity.io/blog/microsofts-durabletask-pypi-package-compromised-in-supply-chain-attack).
 
+## Hades: `.pth` Startup Hooks (June 2026)
+
+Hades is the most consequential PyPI campaign for this guide, because it invalidates the
+assumption underlying Control 2. Refusing source distributions stops `setup.py` from
+running at install time.
+Hades never needed `setup.py`: it shipped its hook **inside the wheel**.
+
+**Scale:** 37 malicious wheels across 19 to 26 packages depending on the vendor’s count,
+part of a wider 471-artifact npm and PyPI campaign in the Miasma / Shai-Hulud lineage.
+Targets clustered in two communities: bioinformatics (`embiggen@0.11.97`,
+`ensmallen@0.8.101`, `gpsea@0.9.14`, `pyphetools@0.9.120`,
+`phenopacket-store-toolkit@0.1.7`, `ppkt2synergy@0.1.1`, with `dynamo-release`,
+`spateo-release`, and `coolbox` accounting for most download volume) and MCP / AI
+tooling (`langchain-core-mcp@1.4.2`/`1.4.3`, `openai-mcp@2.41.1`/`2.41.2`,
+`instructor-mcp@1.15.2`/`1.15.3`, `tiktoken-mcp@0.13.1`/`0.13.2`,
+`ray-mcp-server@0.2.1`). Typosquats (`rsquests`, `tlask`, `rlask`) rounded out the set.
+
+### How the Mechanism Works
+
+Python’s `site` module runs at interpreter startup and processes every `.pth` file in
+each `site-packages` directory.
+Lines are normally directory paths to append to `sys.path`. But `site` has a documented
+special case: **a line beginning with `import` is executed**. The feature exists so
+packaging tools can install import hooks; `distutils-precedence.pth` from setuptools is
+the canonical legitimate user.
+
+Hades wheels ship a file named `<package>-setup.pth` (for example
+`langchain_core-setup.pth`) containing an obfuscated import line.
+On every `python` invocation, that line searches `sys.path` for `_index.js`, downloads a
+standalone Bun runtime (1.3.13 or 1.3.14) from GitHub releases if one is not present,
+and executes the JavaScript payload under Bun.
+The payload reads process memory directly, using `/proc/<pid>/mem` on Linux, Mach kernel
+APIs on macOS, and `ReadProcessMemory` on Windows.
+
+### Why Each Existing Control Misses It
+
+| Control | Outcome |
+| --- | --- |
+| `PIP_ONLY_BINARY=:all:` / `--no-build` / `UV_NO_BUILD` | **No effect.** The hook is in a wheel; no build occurs. |
+| Never importing the package | **No effect.** `site` runs the hook before any user code, whether or not the package is imported. |
+| Removing the import from your code | **No effect.** The file stays in `site-packages` until the package is uninstalled. |
+| `ignore-scripts`-style controls | **Not applicable.** PyPI has no install-script equivalent to disable. |
+| Release-age cool-off | **Works.** This is the control that bought detection time, and it is essentially the only install-side one that applies. |
+| Sandboxed first run | **Works,** if the sandbox is where you install and first invoke Python. |
+
+The practical addition is detection: enumerate `.pth` files that execute, and treat
+anything outside a short allow-list as suspect.
+A legitimate `.pth` almost always contains paths only.
+In practice two `import` forms are normal: `distutils-precedence.pth` (setuptools) and
+`__editable__.*.pth` (PEP 660 editable installs).
+The audit command is in
+[hardening-pypi.md](../guidelines/hardening-pypi.md#step-5-audit-pth-interpreter-startup-hooks),
+and `scripts/audit_workspace.py --only pth --scan-site-packages` applies the allow-list.
+
+Two operational notes.
+`.pth` files are **per-environment**, so a clean result in one `.venv` says nothing
+about another; audit each.
+And the hook survives uninstalling whatever pulled it in if the file was written outside
+the package’s own record, so confirm removal rather than assuming it.
+
+**Precedent:** LiteLLM 1.82.8 (March 2026) already shipped `litellm_init.pth`. Hades is
+the point where the technique became the campaign’s primary delivery mechanism rather
+than a persistence extra.
+
+**Sources:**
+[Socket](https://socket.dev/blog/mini-shai-hulud-miasma-and-hades-worms-target-bioinformatics-and-mcp-developers-via-malicious);
+[The Hacker News](https://thehackernews.com/2026/06/hades-pypi-attack-19-packages-poisoned.html);
+[Orca](https://orca.security/resources/blog/hades-pypi-supply-chain-attack/);
+[Dark Reading](https://www.darkreading.com/application-security/hades-campaign-pypi-shai-hulud).
+
+## TrapDoor Cross-Ecosystem Campaign (May 2026)
+
+TrapDoor ran from May 19, 2026 across npm, PyPI, and Crates.io simultaneously, with
+execution paths tailored per runtime: `postinstall` on npm, **import-time execution** on
+PyPI, and `build.rs` on Crates.io.
+The seven PyPI packages (`cryptowallet-safety`, `defi-risk-scanner`,
+`eth-security-auditor`, `solidity-build-guard`, `env-loader-cli`, `git-config-sync`,
+`data-pipeline-check`) fetch a remote JavaScript payload from `ddjidd564.github.io` and
+run it via `node -e` when the module is imported.
+
+Its lasting contribution is the AI-assistant vector rather than the stealer.
+The npm payload `trap-core.js` plants `.cursorrules` and `CLAUDE.md` files whose
+instructions are hidden in zero-width Unicode (U+200B, U+200C, U+200D, U+FEFF),
+invisible in an editor and in a GitHub diff, directing the coding agent to run a
+“security scan” that discovers and exfiltrates local secrets.
+Distribution was through documentation pull requests to LangChain, LlamaIndex, MetaGPT,
+browser-use, and OpenHands.
+A shared marker string `P-2024-001` appears across the campaign’s persistence artifacts.
+
+This is prompt injection delivered through the supply chain: the agent executes with
+credentials it already holds, so no exploit is needed and no code executes on its own.
+Defenses are in
+[hardening-agent-workspaces.md](../guidelines/hardening-agent-workspaces.md).
+
+**Sources:**
+[The Hacker News](https://thehackernews.com/2026/05/trapdoor-supply-chain-attack-spreads.html);
+[Phoenix Security](https://phoenix.security/trapdoor-supply-chain-ai-poisoning-npm-pypi-crates/).
+
 * * *
 
 # Part 3: Best Practices For Hardening
@@ -413,6 +511,15 @@ Source distributions (`sdist`) execute arbitrary Python code during installation
 `setup.py`, `setup.cfg` hooks, or PEP 517 build backends.
 Wheels do not execute code at install time.
 
+> **Scope this control accurately.** “Wheels do not execute code at install time” is
+> true and still worth having.
+> It is not the same claim as “wheels are safe.”
+> A wheel can ship a `.pth` file that executes on every interpreter start (the June 2026
+> Hades campaign), and its module top-level code runs on import.
+> Control 2 removes the build-time execution surface; it does nothing about the
+> load-time one. Pair it with the `.pth` audit in
+> [hardening-pypi.md](../guidelines/hardening-pypi.md#step-5-audit-pth-interpreter-startup-hooks).
+
 - **pip:** `PIP_ONLY_BINARY=":all:"` or `pip install --only-binary :all:`.
 - **uv:** `--no-build` (or `UV_NO_BUILD=true`) refuses to build any source distribution.
   uv prefers wheels by default but will fall back to sdists unless this is set.
@@ -425,8 +532,8 @@ Wheels do not execute code at install time.
   third-party installs (`uv pip install --no-build <dep>`,
   `uv tool install --no-build <tool>`), or deny-list specific packages with
   `UV_NO_BUILD_PACKAGE="pkg-a pkg-b"`, rather than exporting the blanket flag.
-  pip’s `PIP_ONLY_BINARY=":all:"` does **not** have this problem — it still builds your
-  local project — which is why only pip’s control is exported globally below.
+  pip’s `PIP_ONLY_BINARY=":all:"` does **not** have this problem—it still builds your
+  local project—which is why only pip’s control is exported globally below.
 - **uv (project mode):** set `no-build = true` in `[tool.uv]` in `pyproject.toml` or
   `uv.toml`.
 - **uv (pip-mode project config):** set `only-binary = [":all:"]` in `[tool.uv.pip]` if
@@ -553,7 +660,7 @@ Cover both by adding the sourcer to both `~/.bash_profile` (or `~/.profile`) and
 
 ```fish
 # Append to ~/.config/fish/conf.d/pypi-hardening.fish
-# (No UV_NO_BUILD: a blanket export breaks `uv sync`; scope it per command instead.)
+# (No UV_NO_BUILD: A blanket export breaks `uv sync`; scope it per command instead.)
 set -gx UV_EXCLUDE_NEWER "14 days"
 set -gx PIP_UPLOADED_PRIOR_TO "P14D"
 set -gx PIP_ONLY_BINARY ":all:"
@@ -609,7 +716,7 @@ units, is `environment.d`:
 
 ```ini
 # ~/.config/environment.d/pypi-hardening.conf
-# (No UV_NO_BUILD: a blanket export breaks `uv sync`; scope it per command instead.)
+# (No UV_NO_BUILD: A blanket export breaks `uv sync`; scope it per command instead.)
 UV_EXCLUDE_NEWER=14 days
 PIP_UPLOADED_PRIOR_TO=P14D
 PIP_ONLY_BINARY=:all:
@@ -625,7 +732,7 @@ Create the file if it does not exist.
 
 ```powershell
 # Append to $PROFILE
-# (No UV_NO_BUILD: a blanket export breaks `uv sync`; scope it per command instead.)
+# (No UV_NO_BUILD: A blanket export breaks `uv sync`; scope it per command instead.)
 $env:UV_EXCLUDE_NEWER = "14 days"
 $env:PIP_UPLOADED_PRIOR_TO = "P14D"
 $env:PIP_ONLY_BINARY = ":all:"
@@ -643,7 +750,7 @@ Setting the variables in the user’s registry hive makes them visible to cmd, P
 and any GUI-launched process the user starts:
 
 ```powershell
-# (No UV_NO_BUILD: a blanket export breaks `uv sync`; scope it per command instead.)
+# (No UV_NO_BUILD: A blanket export breaks `uv sync`; scope it per command instead.)
 [Environment]::SetEnvironmentVariable("UV_EXCLUDE_NEWER", "14 days", "User")
 [Environment]::SetEnvironmentVariable("PIP_UPLOADED_PRIOR_TO", "P14D", "User")
 [Environment]::SetEnvironmentVariable("PIP_ONLY_BINARY", ":all:", "User")
@@ -725,7 +832,7 @@ variables:
 
 Same pattern: set the four variables in the job environment.
 
-## Install-Script Controls And Source Distribution Safety
+## Install-Script Controls and Source Distribution Safety
 
 Unlike npm, Python’s primary install-time code execution risk comes from source
 distributions (sdists), not lifecycle hooks.
@@ -733,13 +840,13 @@ When pip builds an sdist, it executes `setup.py` (or a PEP 517 build backend) wi
 access to the filesystem and network.
 Wheels bypass this entirely.
 
-### Why Refusing sdists Is The Primary Defense
+### Why Refusing sdists Is the Primary Defense
 
 Setting `PIP_ONLY_BINARY=":all:"` for pip and applying `--no-build` for uv forces the
 installer to refuse any package that does not have a pre-built wheel available.
 This eliminates the entire class of `setup.py`-based attacks.
 Export `PIP_ONLY_BINARY` globally (it still builds your own local project), but apply
-uv’s `--no-build` / `UV_NO_BUILD` per command or via `UV_NO_BUILD_PACKAGE` — a blanket
+uv’s `--no-build` / `UV_NO_BUILD` per command or via `UV_NO_BUILD_PACKAGE`—a blanket
 `export UV_NO_BUILD=true` breaks `uv sync` of your project’s own editable package.
 
 Note: pip’s `--only-binary` flag has the env-var equivalent `PIP_ONLY_BINARY` (pip
@@ -748,7 +855,7 @@ uv exposes `UV_NO_BUILD` (equivalent to `--no-build`) but does not expose an env
 named `UV_ONLY_BINARY`. To get `--only-binary` semantics at project scope in uv, set
 `only-binary = [":all:"]` under `[tool.uv.pip]` in `pyproject.toml` or `uv.toml`.
 
-### When You Need An sdist
+### When You Need an sdist
 
 Some packages (especially those with C extensions on uncommon platforms) only distribute
 sdists. For those specific packages, opt out narrowly:
@@ -792,7 +899,7 @@ Use multiple feeds. Each has gaps; the union catches everything in practice.
 | **Datadog Security Labs** | Deep technical posts on campaign attribution and payload analysis | `securitylabs.datadoghq.com` |
 | **CISA Alerts** | US-CERT advisories for major incidents | `cisa.gov/news-events/alerts` |
 
-### Tier 3: Commercial (For SLAs Or Private-Package Coverage)
+### Tier 3: Commercial (For SLAs or Private-Package Coverage)
 
 - **Snyk Vulnerability DB**: comprehensive; paid above small-team tier.
 - **Phylum**: built around supply-chain-attack use case specifically.
@@ -846,7 +953,7 @@ pip-audit --vulnerability-service osv
 
 Backed by PyPA Advisory Database and optionally OSV. Run after every dependency change.
 
-**Run scanners as isolated, pinned tools — never as project dependencies.** Adding
+**Run scanners as isolated, pinned tools—never as project dependencies.** Adding
 `pip-audit` (or any scanner) to `[dependency-groups]` / `dev` drags its ~20 transitive
 packages into your `uv.lock`, putting the scanner’s own tree under the cool-off and
 audit surface you are trying to keep small (and those transitive deps are themselves
@@ -876,7 +983,7 @@ virtual environments in the target directory.
 Free tier covers public packages.
 Paid tier adds monitoring and CI integration.
 
-### Manual Lockfile Grep Against A Known-Bad List
+### Manual Lockfile Grep Against a Known-Bad List
 
 When a brand-new IOC list drops and you do not want to wait for `osv-scanner` to ingest
 it, grep directly:
@@ -901,7 +1008,7 @@ done
 - [ ] Run `pip-audit` in each active virtual environment; investigate any hits.
 - [ ] Rotate any plaintext PyPI tokens to scoped, read-only tokens where possible.
 
-### Per-Project (When Adding Or Removing Dependencies)
+### Per-Project (When Adding or Removing Dependencies)
 
 - [ ] To intentionally install a fresh package, unset only the age gate per command,
   visibly: `UV_EXCLUDE_NEWER= uv add some-pkg`. Keep `PIP_ONLY_BINARY` set and reach for
@@ -916,7 +1023,7 @@ done
   named attacks. Add their IOC lists to a local `known-bad.txt` if relevant.
 - [ ] Run `pip-audit` in active environments.
 
-### When A New Named Attack Drops
+### When a New Named Attack Drops
 
 - [ ] Run the grep recipe against every lockfile and `requirements.txt` in your
   workspace with that attack’s IOC list.
@@ -938,11 +1045,18 @@ typical projects. For a genuinely urgent CVE, take the documented exception (opt
 command, keeping `PIP_ONLY_BINARY` set and the wheel-only / no-build posture in place
 unless a source build is truly unavoidable), pin the exact version, and log it.
 
-**How does this interact with Renovate or Dependabot?** Renovate supports
-`minimumReleaseAge: "14 days"` in `renovate.json`, which applies to all ecosystems
-including PyPI. Dependabot does not yet support release-age gating for PyPI (as of
-2026-05). Both tools’ filters are independent of the package manager’s; both should be
-on.
+**How does this interact with Renovate or Dependabot?** Both support release-age gating
+for PyPI. Renovate uses `minimumReleaseAge: "14 days"` in `renovate.json`, which applies
+to all ecosystems; there is no default, so opt in.
+Dependabot uses the `cooldown` block in `.github/dependabot.yml` (`default-days`, plus
+`include` / `exclude` lists), and its ecosystem support covers `pip` and `uv`. **Since
+2026-07-14 Dependabot applies a 3-day cooldown by default**, for version updates only;
+security updates still open immediately.
+
+Set a window in both layers, because they gate different events: the bot gates *when a
+pull request is proposed*, the package manager gates *what a resolution may install*. A
+bot-only cooldown does nothing about `uv add somepkg` typed by hand, a CI job that
+re-locks, or a transitive dependency the bot never proposed.
 
 **What about `--only-binary :all:` breaking packages that only publish sdists?** Most
 widely-used packages publish wheels.
@@ -1007,7 +1121,7 @@ Docs”.
 - [SecurityWeek: TanStack, Mistral AI, UiPath Hit in Fresh Supply Chain Attack (May 2026)](https://www.securityweek.com/tanstack-mistral-ai-uipath-hit-in-fresh-supply-chain-attack/)
 - [BleepingComputer: Shai Hulud Attack Ships Signed Malicious TanStack, Mistral npm Packages (May 2026)](https://www.bleepingcomputer.com/news/security/shai-hulud-attack-ships-signed-malicious-tanstack-mistral-npm-packages/)
 
-### Tools And Feeds
+### Tools and Feeds
 
 - [OSV.dev, Open Source Vulnerabilities database](https://osv.dev/)
 - [OSV-Scanner on GitHub](https://github.com/google/osv-scanner)
@@ -1023,6 +1137,6 @@ Docs”.
 - [GitHub Advisory Database (PyPI)](https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip)
 - [deps.dev API](https://deps.dev/)
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

@@ -6,6 +6,8 @@ on:
       - '**.md'
       - 'tests/known-env-vars.txt'
       - 'tests/validate-docs.py'
+      - 'tests/test_audit_workspace.py'
+      - 'scripts/*.py'
       - '.github/workflows/doc-lint.yml'
   push:
     branches: [main]
@@ -23,3 +25,12 @@ jobs:
           python-version: '3.11'
       - name: Validate env-var names against allow-list
         run: python3 tests/validate-docs.py
+  test-audit-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Behavioural tests for audit_workspace.py
+        run: python3 tests/test_audit_workspace.py

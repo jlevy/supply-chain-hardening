@@ -1,6 +1,4 @@
-# Strict, Balanced, And Emergency-Exception Modes
-
-**Last updated:** 2026-05-23
+# Strict, Balanced, and Emergency-Exception Modes
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -8,19 +6,21 @@ The per-ecosystem playbooks are written for the Balanced default.
 This doc names two other postures (Strict and Emergency Exception) and documents how to
 switch between them.
 
-## Modes At A Glance
+## Modes At a Glance
 
 | Control | Balanced (default) | Strict | Emergency Exception |
 | --- | --- | --- | --- |
 | Release-age cool-off | 14 days where the package manager supports it | 14-day minimum; no upgrade without reviewing the dependency’s change set (do not update for its own sake); weekly review of bypass logs | per-command bypass with reason logged |
 | Install / lifecycle scripts | disabled (`NPM_CONFIG_IGNORE_SCRIPTS=true`) | disabled; allowlist required for any exception | disabled; exceptions require approval |
-| Source builds (PyPI sdists, `build.rs`, proc-macros) | refused (`PIP_ONLY_BINARY=:all:` globally; uv `--no-build` per command / `UV_NO_BUILD_PACKAGE`, not a blanket `UV_NO_BUILD` export) | refused, with sandbox for unavoidable cases | sandbox + approver |
+| Source builds (PyPI sdists, `build.rs`, proc-macros) | refused (`PIP_ONLY_BINARY=:all:` globally; uv `--no-build` per command / `UV_NO_BUILD_PACKAGE`, not a blanket `UV_NO_BUILD` export) | refused, with sandbox for unavoidable cases | sandbox and approver |
 | Lockfile | committed; `--frozen` / `--locked` / `npm ci` | committed; `cargo vet` or equivalent attestation required | unchanged |
 | Untrusted-repo first run | recommended sandbox | mandatory sandbox (see [untrusted-repo-first-run.md](untrusted-repo-first-run.md)) | mandatory sandbox |
-| Network-from-build | allowed during install / build | egress allowlist only | egress allowlist + approver |
-| `npx` / `pnpm dlx` / `bunx` / `uvx` / `go run <remote>` | discouraged; allowed with pin + review | banned | per-command exception |
+| Network-from-build | allowed during install / build | egress allowlist only | egress allowlist and approver |
+| `npx` / `pnpm dlx` / `bunx` / `uvx` / `go run <remote>` | discouraged; allowed with pin and review | banned | per-command exception |
 | `GOTOOLCHAIN` | unset (allow proxy-fetched toolchains under fixed Go) | `local` (no automatic toolchain downloads) | unset |
 | CI scanner versions | pinned where convenient | pinned; checksum-verified install | pinned |
+| Repo-supplied agent and editor config | reviewed before opening a third-party repo | agent hooks restricted to managed settings (`allowManagedHooksOnly`); no project MCP auto-approval | unchanged; never bypassed |
+| `.pth` interpreter hooks | audited after installs and on suspicion | audited per virtualenv on every dependency change | unchanged |
 
 ## When To Use Each Mode
 
@@ -53,6 +53,11 @@ Apply the per-ecosystem additions on top of the Balanced shell-init:
   when adding a dependency for the first time.
 - Go: set `GOTOOLCHAIN=local`. Forbid `replace` directives in `go.mod` except via a
   reviewed PR. Run `go test ./...` only inside the sandbox for untrusted code.
+- Agent and editor workspaces: set `allowManagedHooksOnly: true` and
+  `allowManagedPermissionRulesOnly: true` in managed Claude Code settings, leave
+  `enableAllProjectMcpServers` off, keep `task.allowAutomaticTasks: "off"` in VS Code,
+  and run `audit_workspace.py` before opening any repo you did not write.
+  Full recipes in [hardening-agent-workspaces.md](hardening-agent-workspaces.md).
 
 ## Emergency Exception Record
 
@@ -91,6 +96,6 @@ yanked after the fact.
   record (above) for human approval, but it must not execute the install until a human
   signs off.
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

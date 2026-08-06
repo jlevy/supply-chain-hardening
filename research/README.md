@@ -16,6 +16,6 @@ and per-shell setup, IOC feeds, scanning-tool comparisons, and severity assessme
 Update procedure: [`../self-update-instructions.md`](../self-update-instructions.md) →
 “Updating Research Docs”.
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

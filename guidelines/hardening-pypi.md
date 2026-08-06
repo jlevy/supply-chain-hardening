@@ -1,6 +1,6 @@
 # PyPI Operational Hardening
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-08-06
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -14,9 +14,17 @@ If you *publish* to PyPI, the dominant 2026 vector is a stolen PyPI API token us
 CI (LiteLLM, `durabletask`): prefer PyPI Trusted Publishers (OIDC) over long-lived
 tokens and follow [`hardening-ci-cd.md`](hardening-ci-cd.md).
 
-## Hardening (Ten-Minute Setup)
+> [!WARNING]
+> **A wheel-only policy is a defence against source builds, not against code
+> execution.** The June 2026 Hades campaign shipped `.pth` files *inside wheels*.
+> Python’s `site` module executes any line in a `.pth` file that starts with `import`,
+> at every interpreter startup, whether or not you ever import the package.
+> `PIP_ONLY_BINARY`, `--no-build`, and `UV_NO_BUILD` do nothing about it.
+> See [Step 5](#step-5-audit-pth-interpreter-startup-hooks).
 
-### Step 1: Create The Hardening Script
+## Setup
+
+### Step 1: Create the Hardening Script
 
 Create `~/.pypi-hardening.sh` with the three protection env vars:
 
@@ -30,7 +38,7 @@ export UV_EXCLUDE_NEWER="14 days"
 
 # Refuse third-party source distributions (sdists). Blocks setup.py code execution at
 # install time. pip's --only-binary exempts your own local/editable project, so it is
-# safe to export globally. (uv's UV_NO_BUILD is *not* safe to export globally — see the
+# safe to export globally. (uv's UV_NO_BUILD is *not* safe to export globally—see the
 # box below.)
 export PIP_ONLY_BINARY=":all:"
 
@@ -38,9 +46,8 @@ export PIP_ONLY_BINARY=":all:"
 export PIP_UPLOADED_PRIOR_TO="P14D"
 ```
 
-> **Do not export `UV_NO_BUILD` globally — it breaks `uv sync`.** uv builds your
-> project’s own (editable) package on every `uv sync`, so a blanket `UV_NO_BUILD=true`
-> fails it:
+> **Do not export `UV_NO_BUILD` globally—it breaks `uv sync`.** uv builds your project’s
+> own (editable) package on every `uv sync`, so a blanket `UV_NO_BUILD=true` fails it:
 > 
 > ```
 > error: Distribution `yourpkg==0.1.0 @ editable+.` can't be installed because it is
@@ -48,9 +55,9 @@ export PIP_UPLOADED_PRIOR_TO="P14D"
 > ```
 > 
 > Verified on uv 0.8.17 and 0.11.16. pip’s `--only-binary :all:` does **not** have this
-> problem — it still builds your local project (verified on pip 26.1), which is why the
+> problem—it still builds your local project (verified on pip 26.1), which is why the
 > recipe keeps it but drops `UV_NO_BUILD`. Apply uv’s no-build protection where it
-> actually guards you — pulling in third-party tools and dependencies:
+> actually guards you—pulling in third-party tools and dependencies:
 > 
 > ```sh
 > uv pip install --no-build <third-party-dep>   # refuse an sdist for this install
@@ -64,6 +71,22 @@ export PIP_UPLOADED_PRIOR_TO="P14D"
 > ```sh
 > export UV_NO_BUILD_PACKAGE="pkg-a pkg-b"      # uv refuses sdists only for these
 > ```
+
+> **For uv, keep the policy in the environment, not in the user config file.** uv’s
+> precedence is CLI flag > environment variable > **project** config > **user** config >
+> system config. Project config outranks user config, so a `pyproject.toml` or `uv.toml`
+> in a repository you clone can quietly override a cool-off you set in
+> `~/.config/uv/uv.toml`. The environment variable is the one setting a repository
+> cannot override.
+> 
+> This is the opposite of the npm-family advice in
+> [`hardening-npm.md`](hardening-npm.md), where a user-level config file is the simplest
+> durable answer. The difference is precedence, not preference: check the order before
+> assuming a config file is the stronger control.
+> 
+> User-level `uv.toml` (`~/.config/uv/uv.toml` on macOS and Linux,
+> `%APPDATA%\uv\uv.toml` on Windows) is still worth setting as a floor for `uv tool`
+> commands, which ignore project-local configuration entirely.
 
 ### Step 2: Source From Shell Init
 
@@ -107,10 +130,12 @@ If you run agents through a desktop launcher, also configure the system-wide env
 (see `research/research-pypi-supply-chain-hardening.md` → “systemd User Environment” or
 the macOS launchd / Windows User-wide instructions).
 
-### Step 4: When You Intentionally Need A Fresh Package
+### Step 4: When You Intentionally Need a Fresh Package
 
 As with npm, the age gate (`UV_EXCLUDE_NEWER` / `PIP_UPLOADED_PRIOR_TO`) applies at
-resolution time, so prefer a surgical, hash-pinned install over relaxing the gate.
+resolution time. In preference order: exempt the single package with
+`exclude-newer-package`, else install that one wheel surgically by URL and hash, and
+only relax the gate when neither is possible.
 A fresh-version exception (e.g. an urgent CVE patch) needs only a wheel; it does **not**
 need source-build execution, so keep the sdist / no-build protection in place
 throughout.
@@ -130,7 +155,29 @@ No `jq`? The same fields are plain JSON: `urls[].filename`,
 time matches the release you intend, then keep the wheel’s `sha256` and `url` for the
 next step.
 
-#### Surgical Install (Preferred)
+#### Exempt One Package, Not the Whole Graph (uv)
+
+uv can carve out a single package rather than dropping the gate everywhere.
+`exclude-newer-package` maps package names to their own cut-off, and `false` exempts a
+package from the global `exclude-newer` entirely.
+Prefer this over unsetting `UV_EXCLUDE_NEWER`, because the rest of the dependency graph
+stays quarantined and the exemption is committed and reviewable rather than living in a
+shell:
+
+```toml
+# pyproject.toml or uv.toml. The exemption is visible in code review.
+[tool.uv]
+exclude-newer = "14 days"
+exclude-newer-package = { some-cve-patched-pkg = false }
+```
+
+The equivalent flag is `--exclude-newer-package <package>=false`, and the environment
+variable is `UV_EXCLUDE_NEWER_PACKAGE`. Values take the same three forms as
+`exclude-newer`: an RFC 3339 timestamp (`2026-08-01T00:00:00Z`), a friendly duration
+(`14 days`), or an ISO 8601 duration (`P14D`). Remove the entry once the package ages
+past the window; leaving it behind converts a one-off exception into a permanent hole.
+
+#### Surgical Install (When You Cannot Use an Exclude)
 
 Install the specific wheel by URL with its hash.
 pip verifies the `#sha256` fragment against the downloaded file and never re-resolves
@@ -146,10 +193,10 @@ uv pip install "https://files.pythonhosted.org/.../<pkg>-<version>-py3-none-any.
 This bypasses the age gate for one vetted wheel only, keeps sdist / no-build enforcement
 intact, and cannot linger in your shell.
 
-#### Relax The Gate (Last Resort)
+#### Relax the Gate (Last Resort)
 
-Only when you cannot construct a wheel URL. Unset **only the age gate** inline, keeping
-sdist / no-build enforcement:
+Only when you cannot construct a wheel URL and are not on uv.
+Unset **only the age gate** inline, keeping sdist / no-build enforcement:
 
 ```sh
 # Fresh wheel only: bypass the age gate, keep no-build / wheel-only enforcement.
@@ -171,13 +218,61 @@ PIP_ONLY_BINARY= pip install some-sdist-only-pkg
 
 Every exception ends in the [exception process](../README.md#the-exception-process):
 
-1. **Verify** — query the JSON API; confirm the upload time and record the wheel
+1. **Verify:** query the JSON API; confirm the upload time and record the wheel
    `sha256`.
-2. **Install surgically** — wheel URL with `#sha256=`; keep sdist / no-build on.
-3. **Record** — log the exception in `supply-chain-audit-log.md` with the reason (a CVE
+2. **Install surgically:** wheel URL with `#sha256=`; keep sdist / no-build on.
+3. **Record:** log the exception in `supply-chain-audit-log.md` with the reason (a CVE
    ID for security patches), the exact `pkg==version`, and the verified `sha256`.
 
-### Notes And Caveats
+### Step 5: Audit `.pth` Interpreter Startup Hooks
+
+Python’s `site` module reads every `.pth` file in `site-packages` at interpreter startup
+and **executes any line beginning with `import`**. The feature exists so that packaging
+tools can install import hooks; the June 2026 Hades campaign used it to run a credential
+stealer on every `python` invocation.
+
+Why the rest of this playbook does not cover it:
+
+| Control | Why it misses `.pth` |
+| --- | --- |
+| `PIP_ONLY_BINARY` / `UV_NO_BUILD` | The hook ships **inside the wheel**. No source build happens. |
+| Cool-off window | Works normally, and is the only Step 1 control that does apply. It is what bought detection time in the Hades case. |
+| “Only import trusted packages” | Nothing is imported. Installation alone is enough. |
+| Removing the package from your imports | The file stays in `site-packages` until the package is uninstalled. |
+
+A legitimate `.pth` file contains only directory paths.
+Two `import` lines are normal in practice: `distutils-precedence.pth` from setuptools,
+and `__editable__.*.pth` from PEP 660 editable installs.
+Treat anything else that executes as suspect.
+
+```sh
+# List every .pth file that executes code, across all site-packages of the active
+# interpreter. Review each hit against the two known-good names above.
+python3 - <<'PY'
+import pathlib, site
+dirs = [pathlib.Path(p) for p in (*site.getsitepackages(), site.getusersitepackages())]
+for d in dirs:
+    if not d.is_dir():
+        continue
+    for f in sorted(d.rglob("*.pth")):
+        lines = [l for l in f.read_text(errors="replace").splitlines()
+                 if l.strip().startswith("import")]
+        if lines:
+            print(f"{f}\n    {lines[0][:160]}")
+PY
+```
+
+The repo’s scanner does the same check with the allow-list applied, across a project and
+optionally the active interpreter:
+
+```sh
+uv run scripts/audit_workspace.py --only pth --scan-site-packages .
+```
+
+Run it once per virtualenv you care about; `.pth` files are per-environment, so a clean
+result in one `.venv` says nothing about another.
+
+### Notes and Caveats
 
 - `UV_EXCLUDE_NEWER="14 days"` and `PIP_UPLOADED_PRIOR_TO="P14D"` are **not**
   syntactically interchangeable.
@@ -185,6 +280,14 @@ Every exception ends in the [exception process](../README.md#the-exception-proce
   and earlier reject them, so run a current uv or use an absolute `YYYY-MM-DD` date
   there. pip 26.1+ accepts ISO 8601 durations (`P14D` = 14 days); setting
   `PIP_UPLOADED_PRIOR_TO=14 days` will silently fail to parse.
+- **Run a current uv; the toolchain itself is a control.** uv 0.12 (2026-07-28) rejects
+  MD5-only hashes in hash-checking mode, rejects wheels that could overwrite the Python
+  interpreter (including case variants and data-directory installs), rejects
+  distributions whose metadata name does not match the file, and rejects PEP 517 backend
+  paths that escape the source tree through symlinks.
+  Those are supply-chain checks you do not get by configuration, only by upgrading.
+  The cool-off applies to your own toolchain too, so take uv upgrades on the same 14-day
+  terms as anything else.
 - **The cool-off covers the whole resolved set, not just the package you named.** Adding
   or upgrading one dependency can pull in many transitive packages, any of which may be
   brand-new. Review the full `uv.lock` / lockfile diff and confirm the cool-off for
@@ -194,7 +297,7 @@ Every exception ends in the [exception process](../README.md#the-exception-proce
   ```sh
   uv lock --upgrade-package <name>==<version>   # bump only this package in the lock
   ```
-- **Run scanners as isolated, pinned tools — never as project dependencies.** Adding
+- **Run scanners as isolated, pinned tools—never as project dependencies.** Adding
   `pip-audit` (or any scanner) to `[dependency-groups]` / `dev` drags its ~20 transitive
   packages into your `uv.lock`, putting the scanner’s own tree under the cool-off and
   audit surface you are trying to keep small (and those transitive deps are themselves
@@ -224,7 +327,7 @@ For untrusted first-runs, see
 
 ## Compromise Assessment
 
-### Step 1: Scan Every Lockfile And Environment
+### Step 1: Scan Every Lockfile and Environment
 
 ```sh
 # Install once: https://github.com/google/osv-scanner/releases
@@ -237,14 +340,16 @@ osv-scanner scan source -L pdm.lock
 pip-audit
 ```
 
-### Step 2: Grep For Known IOCs From The Most Recent Named Attacks
+### Step 2: Grep For Known IOCs From the Most Recent Named Attacks
 
-The most relevant PyPI attacks as of 2026-05-23. The cross-ecosystem table is in
+The most relevant PyPI attacks as of 2026-08-04. The cross-ecosystem table is in
 [`compromised-packages.md`](../compromised-packages.md); this is the PyPI quick-grep
 extract:
 
 | Date | Name | Quick IOC Pattern |
 | --- | --- | --- |
+| 2026-06-08 | Hades | `embiggen==0.11.97`, `ensmallen==0.8.101`, `gpsea==0.9.14`, `pyphetools==0.9.120`, `phenopacket-store-toolkit==0.1.7`, `ppkt2synergy==0.1.1`, `langchain-core-mcp==1.4.2`/`1.4.3`, `openai-mcp==2.41.1`/`2.41.2`, `instructor-mcp==1.15.2`/`1.15.3`, `tiktoken-mcp==0.13.1`/`0.13.2`, `ray-mcp-server==0.2.1`. On-disk: any `*-setup.pth` in site-packages, plus `_index.js` |
+| 2026-05-19 | TrapDoor | `cryptowallet-safety`, `defi-risk-scanner`, `eth-security-auditor`, `solidity-build-guard`, `env-loader-cli`, `git-config-sync`, `data-pipeline-check`. Fires at import, not install |
 | 2026-05-19 | durabletask / TeamPCP Wave 4 | `durabletask==1.4.1`, `durabletask==1.4.2`, `durabletask==1.4.3` (clean `1.4.0`) |
 | 2026-05-11 | TanStack cross-ecosystem | `mistralai==2.4.6`, `guardrails-ai==0.10.1` |
 | 2026-04-30 | PyTorch Lightning | `pytorch-lightning==2.6.2`, `pytorch-lightning==2.6.3` (clean `2.6.1`) |
@@ -279,15 +384,24 @@ consistent regardless of which registry was hit.
    `~/.bash_history`, virtualenv contents (`cp -a .venv /tmp/audit-snapshot-venv-...`),
    and any active scanner output.
    Commit into the private audit log before mutating.
-3. **Rotate tokens by category.** PyPI publish tokens (PyPI account → API tokens);
-   GitHub PAT/OAuth (`~/.config/gh`); cloud (`~/.aws/credentials`, `~/.config/gcloud/`,
-   Azure CLI); SSH (`~/.ssh/*`); env-var-stored API keys (the dominant exfil target for
-   the 2022-2026 PyPI wave).
-4. **Check persistence mechanisms specific to this payload.** LiteLLM 1.82.8 added a
-   systemd backdoor and a `.pth` file that runs at every Python startup; check
-   `systemctl --user list-unit-files --state=enabled` and grep for `*.pth` under your
-   site-packages. Ultralytics installed an XMRig miner; check running processes and CPU
-   usage history.
+3. **Remove revocation-triggered persistence, then rotate.** Campaigns in the Shai-Hulud
+   lineage install watchers that react to a stolen token being revoked; the 2026-08-04
+   keyv worm `eval`s an operator-supplied handler on the first HTTP 4xx. Run
+   `python3 scripts/audit_workspace.py --only host .` before touching credentials.
+   Then **revoke** by category, from a different clean machine: PyPI publish tokens
+   (PyPI account → API tokens); GitHub PAT/OAuth (`~/.config/gh`); cloud
+   (`~/.aws/credentials`, `~/.config/gcloud/`, Azure CLI); Vault and Kubernetes tokens;
+   SSH (`~/.ssh/*`); env-var-stored API keys, the dominant exfil target for the
+   2022-2026 PyPI wave.
+4. **Check persistence mechanisms specific to this payload.** `.pth` startup hooks are
+   the PyPI-specific one and outlive an uninstall of the *importing* code: LiteLLM
+   1.82.8 shipped `litellm_init.pth`, and the June 2026 Hades wheels shipped
+   `*-setup.pth`. Run the audit in [Step 5](#step-5-audit-pth-interpreter-startup-hooks)
+   against **every** virtualenv, not just the active one.
+   Also check `systemctl --user list-unit-files --state=enabled` (LiteLLM added a
+   systemd backdoor), running processes and CPU history (Ultralytics installed an XMRig
+   miner), and the repository itself for planted `.claude/`, `.codex/`, or `.vscode/`
+   autostart config ([`hardening-agent-workspaces.md`](hardening-agent-workspaces.md)).
 5. **Remove or downgrade the affected dependency.** Pin to the last known-good version
    in `pyproject.toml` / `requirements.txt` / `uv.lock`.
 6. **Regenerate lockfile from trusted sources.** `uv lock` (or
@@ -301,7 +415,7 @@ consistent regardless of which registry was hit.
    Record raw findings, analysis, every action with timestamps, and any pending
    follow-ups. Redact live credentials per the template’s Redaction Rules.
 
-## Keeping A Supply Chain Audit Log
+## Keeping a Supply Chain Audit Log
 
 Follow the same audit-log discipline described in
 [hardening-npm.md](hardening-npm.md#keeping-a-supply-chain-audit-log).
@@ -319,8 +433,8 @@ env:
   UV_EXCLUDE_NEWER: "14 days"      # friendly duration needs uv >= 0.9 (pinned below)
   PIP_ONLY_BINARY: ":all:"
   PIP_UPLOADED_PRIOR_TO: "P14D"
-  UV_VERSION: "0.11.16"            # pin a recent uv; verify against pypi.org/project/uv/
-  PIP_AUDIT_VERSION: "2.9.0"       # pin; verify against pypi.org/project/pip-audit/
+  UV_VERSION: "0.12.1"             # pin a recent uv; verify against pypi.org/project/uv/
+  PIP_AUDIT_VERSION: "2.10.1"      # pin; verify against pypi.org/project/pip-audit/
 jobs:
   install:
     runs-on: ubuntu-latest
@@ -358,6 +472,6 @@ For early warning of new named attacks:
 - [Socket.dev](https://socket.dev/)
 - [Datadog Security Labs](https://securitylabs.datadoghq.com/)
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->

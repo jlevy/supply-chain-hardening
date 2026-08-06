@@ -1,6 +1,6 @@
 # Self-Update Instructions
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-08-06
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
 
@@ -11,11 +11,15 @@ Three doc categories require updates on different cadences:
   record of named supply-chain incidents.
   Updated whenever a new incident is multi-source verified.
 - **Hardening guidelines** (`hardening-<ecosystem>.md`, plus the cross-ecosystem
-  `hardening-ci-cd.md`): brief operational action lists.
-  Update when configuration recipes change (new env var, new flag, new tool replacing an
-  old one). `hardening-ci-cd.md` covers publish-side and GitHub Actions controls that are
-  not specific to one registry; update it when a CI/CD control changes (new GitHub
-  Actions setting, new trusted/staged-publishing flow, new runner-hardening option).
+  `hardening-ci-cd.md` and `hardening-agent-workspaces.md`): brief operational action
+  lists. Update when configuration recipes change (new env var, new flag, new tool
+  replacing an old one).
+  `hardening-ci-cd.md` covers publish-side and GitHub Actions controls that are not
+  specific to one registry; update it when a CI/CD control changes (new GitHub Actions
+  setting, new trusted/staged-publishing flow, new runner-hardening option).
+  `hardening-agent-workspaces.md` covers open-time execution; update it when an agent or
+  editor changes its trust model, hook mechanism, or config file paths, which happens on
+  a faster cadence than package-manager changes.
 - **Research docs** (`research-<ecosystem>-supply-chain-hardening.md`): full
   threat-model and per-ecosystem-implementation references.
   Update when an ecosystem-specific control set or mechanism changes, or when there is
@@ -24,6 +28,14 @@ Three doc categories require updates on different cadences:
 When a new incident lands, **update `compromised-packages.md` first**, then add
 ecosystem-specific narrative or mechanism detail to the relevant research doc.
 Hardening guides only need updates if a new control or shell pattern is involved.
+
+**Dated stamps are reserved for currency-sensitive pages.** The pages above (incident
+table, hardening playbooks, research docs, and this file) carry a `**Last updated:**`
+header because their version-specific and incident-specific claims rot, and the date
+tells a reader how stale they might be.
+Evergreen methodology pages (`README.md`, `strict-mode.md`,
+`untrusted-repo-first-run.md`) deliberately carry **no** date stamp; do not add one.
+`tests/validate-docs.py` enforces this split.
 
 ## Updating `compromised-packages.md`
 
@@ -42,18 +54,29 @@ independent sources from the “Incident Reporting Feeds” list in
 for inclusion: high download count, novel mechanism, named campaign, or persistence
 patterns worth recognising on sight.
 
-`compromised-packages.md` has two sections:
+`compromised-packages.md` has three sections:
 
-- **Table (Actionable IOCs)**: rows with exact `pkg@version` (or a fully-linked GHSA /
-  full-IOC-list URL), dates, and multi-source references.
+- **Active Watch List (Actionable IOCs)**: rows with exact `pkg@version` (or a
+  fully-linked GHSA / full-IOC-list URL), dates, and multi-source references.
   Defenders scan against this section.
+  It is **size-capped**: roughly the last twelve months, plus incidents whose artifacts
+  are still served (e.g. Go module-proxy caching).
+- **Historical Incidents (Recognition Only)**: aged-out rows kept for their mechanism,
+  with a one-line pattern description and one or two primary references.
+  No per-version IOCs; the systems of record cover those.
 - **Contextual Incidents (Unverified / Pending Verification)**: campaigns named in
   trusted feeds but missing per-version detail or independent verification.
   Awareness only; no grep-able IOCs.
 
-Add new rows to the **Table** when they meet the bar.
-Move rows out of Contextual into the Table when verification is completed, or delete
-from Contextual if the campaign turns out to be misattributed.
+Add new rows to the **Active Watch List** when they meet the bar.
+Move rows out of Contextual into the Active Watch List when verification is completed,
+or delete from Contextual if the campaign turns out to be misattributed.
+
+**Aging rows out:** when an Active row is more than about twelve months old and its
+artifacts are no longer served (versions yanked, no proxy cache still delivering the
+payload), move it to Historical Incidents: keep Date, Name, Ecosystem, a one-line
+pattern description, and one or two primary references; drop the per-version IOC list.
+Do not delete rows outright—the recognition value is the point of keeping them.
 
 Procedure:
 
@@ -62,8 +85,8 @@ Procedure:
    Reporting Feeds”. Acceptable substitutes: a CISA alert, or a primary maintainer
    postmortem.
 2. Append a new row (or rows, one per ecosystem if the campaign hit multiple) to the
-   Table. Match the existing column structure exactly: Date, Name, Ecosystem, Scale,
-   Affected `pkg@version` (representative), Vector, References.
+   Active Watch List. Match the existing column structure exactly: Date, Name, Ecosystem,
+   Scale, Affected `pkg@version` (representative), Vector, References.
 3. Quote exact `package@version` strings.
    Do not paraphrase as “version 1.x”.
 4. Use links in the `References` column.
@@ -107,13 +130,22 @@ update it everywhere in lockstep, minding that the control and unit differ by to
 - pnpm 10.x: `NPM_CONFIG_MINIMUM_RELEASE_AGE=20160` (minutes).
 - pnpm 11+: `minimumReleaseAge: 20160` in `pnpm-workspace.yaml` (minutes); pnpm 11 does
   not read `NPM_CONFIG_*` env vars, only `PNPM_CONFIG_*`.
+- Yarn 4.10+: `npmMinimalAgeGate: 20160` in `.yarnrc.yml` (minutes).
+- Bun 1.3+: `minimumReleaseAge = 1209600` in `bunfig.toml` (seconds).
 - uv: `UV_EXCLUDE_NEWER=”14 days”`; pip 26.1+: `PIP_UPLOADED_PRIOR_TO=”P14D”`; poetry:
   `solver.min-release-age 14` (days).
 - The `date -v-14d` / `-d '14 days ago'` shell snippets and
   `npm-check-updates --cooldown 14` examples, plus `SUPPLY-CHAIN-SECURITY.md`,
   `guidelines/strict-mode.md`, and the per-ecosystem playbooks.
 
-Grep for `14`, `20160`, and `P14D` before claiming the change is complete.
+Grep for `14`, `20160`, `1209600`, and `P14D` before claiming the change is complete.
+
+**Re-check the shipped defaults, not just the syntax.** pnpm, Yarn, Bun, and Dependabot
+each enable a cool-off by default, and those default values move.
+The comparison table in `README.md` -> “What the Ecosystems Now Ship by Default” states
+a default for every tool and is the thing most likely to go stale; verify each row
+against vendor documentation rather than a secondary blog, which is how the Yarn and Bun
+rows were wrong in circulating write-ups.
 
 ## Updating Research Docs (`research-*-supply-chain-hardening.md`)
 
@@ -153,7 +185,7 @@ Procedure:
 `tests/validate-docs.py` (run automatically in CI via `.github/workflows/doc-lint.yml`)
 checks that every package-manager-shaped env-var name in the docs (`NPM_CONFIG_*`,
 `PIP_*`, `UV_*`, `CARGO_*`, and the `GO*` names we use) is in
-`tests/known-env-vars.txt`. This catches the “`UV_ONLY_BINARY`-class bug” — a
+`tests/known-env-vars.txt`. This catches the “`UV_ONLY_BINARY`-class bug”—a
 plausibly-named env var that does not actually exist.
 
 When you introduce a new env var in the docs:
@@ -176,12 +208,19 @@ before bumping the Last Verified Against table.
 
 | Tool | Version | Verified date | Validator | Notes |
 | --- | --- | --- | --- | --- |
-| npm | 11.x | 2026-05-23 | agent-assisted refresh | `NPM_CONFIG_MIN_RELEASE_AGE` requires 11.10+; staged publishing (`npm stage publish` / `npm stage approve`) GA 2026-05-20 requires 11.15+; OIDC trusted publishing requires 11.5.1+ |
-| pnpm | 10.x and 11.x | 2026-05-23 | agent-assisted refresh | 10.x reads `NPM_CONFIG_MINIMUM_RELEASE_AGE` (minutes); **pnpm 11 (2026-04-28) no longer reads `npm_config_*` — env prefix is `PNPM_CONFIG_*`, settings live in `pnpm-workspace.yaml` / `~/.config/pnpm/config.yaml`** ([release notes](https://pnpm.io/blog/releases/11.0)); v11 defaults `minimumReleaseAge: 1440` and `strictDepBuilds: true`; `allowBuilds` map replaced `onlyBuiltDependencies`/`neverBuiltDependencies` |
-| pip | 26.1 | 2026-05-12 | initial author | `PIP_UPLOADED_PRIOR_TO` accepts ISO 8601 duration in 26.1+ |
-| uv | latest | 2026-05-12 | initial author | `UV_NO_BUILD` documented; `UV_ONLY_BINARY` confirmed not a real env var |
+| npm | 12.0.2 | 2026-08-04 | agent-assisted refresh | **npm 12 (2026-07-08) blocks dependency lifecycle scripts and implicit `node-gyp` builds by default** via the root package’s `allowScripts` policy, managed with `npm install-scripts ls / approve / deny / prune` plus `npm rebuild`; `allow-git` and `allow-remote` default to `none`, so tarball-URL and git installs need `--allow-remote` / `--allow-git`; unknown `.npmrc` keys error only when `strict-npmrc=true` (default `false`), but unknown **CLI flags** always error; requires Node `^22.22.2 \|\| ^24.15.0 \|\| >=26.0.0`; `npm shrinkwrap` removed. `NPM_CONFIG_MIN_RELEASE_AGE` requires 11.10+; staged publishing requires 11.15+; OIDC trusted publishing requires 11.5.1+ |
+| pnpm | 10.x and 11.20.0 | 2026-08-04 | agent-assisted refresh | 10.x reads `NPM_CONFIG_MINIMUM_RELEASE_AGE` (minutes); **pnpm 11 (2026-04-28) no longer reads `npm_config_*`, the env prefix is `PNPM_CONFIG_*` and settings live in `pnpm-workspace.yaml` / `~/.config/pnpm/config.yaml`** ([release notes](https://pnpm.io/blog/releases/11.0)); v11 defaults `minimumReleaseAge: 1440` and `strictDepBuilds: true`; `allowBuilds` map replaced `onlyBuiltDependencies`/`neverBuiltDependencies` |
+| pip | 26.2.1 | 2026-08-04 | agent-assisted refresh | `PIP_UPLOADED_PRIOR_TO` accepts ISO 8601 duration in 26.1+ |
+| uv | 0.12.1 | 2026-08-04 | agent-assisted refresh | `exclude-newer-package` / `UV_EXCLUDE_NEWER_PACKAGE` gives per-package cool-off overrides (`<pkg>=false` exempts one package); 0.12 rejects MD5-only hashes in hash-checking mode, rejects wheels that could replace the Python interpreter, rejects name-mismatched distributions, and rejects PEP 517 backend paths escaping the source tree via symlinks; `UV_NO_BUILD` documented; `UV_ONLY_BINARY` confirmed not a real env var |
 | cargo | 1.83+ | 2026-05-12 | initial author | `cargo-vet`, `cargo-deny`, `cargo-audit` versions pinned in CI examples |
 | go | 1.25.10 / 1.26.3 | 2026-05-12 | initial author | Minimum for CVE-2026-42501 fix |
+| Yarn | 4.10+ | 2026-08-04 | agent-assisted refresh | `npmMinimalAgeGate` defaults to `"1w"` (cool-off **on** by default); per-package exemptions via `npmPreapprovedPackages` (globs or exact locators); config lives in `.yarnrc.yml` |
+| Bun | 1.3+ | 2026-08-04 | agent-assisted refresh | `minimumReleaseAge` defaults to `259200` seconds (3 days, **on** by default); exemptions via `minimumReleaseAgeExcludes`; config in `bunfig.toml`; gate applies at resolution, not to versions already in `bun.lock` ([oven-sh/bun#30525](https://github.com/oven-sh/bun/issues/30525)) |
+| Dependabot | n/a (hosted) | 2026-08-04 | agent-assisted refresh | `cooldown.default-days` defaults to **3** since 2026-07-14, version updates only; security updates are exempt; sub-keys `semver-*-days`, `include`, `exclude`; supports pip, uv, and npm |
+| Renovate | n/a (hosted) | 2026-08-04 | agent-assisted refresh | `minimumReleaseAge` has no default; `internalChecksFilter` defaults to `strict` |
+| osv-scanner | v2.0.2 | 2026-05-23 | agent-assisted refresh | **Needs re-verification.** Pinned in the npm CI recipe; not re-checked on 2026-08-04 because the GitHub releases API was unreachable from the refresh session. Confirm against the [releases page](https://github.com/google/osv-scanner/releases) before the next refresh |
+| Claude Code | settings schema as of 2026-08-04 | 2026-08-04 | agent-assisted refresh | Precedence managed > CLI > local > project > user; project `.claude/settings.json` allow rules require workspace trust; `allowManagedHooksOnly`, `allowManagedPermissionRulesOnly`, `disableAllHooks`, `enableAllProjectMcpServers` drive the agent-workspace playbook |
+| VS Code | Workspace Trust as of 2026-08-04 | 2026-08-04 | agent-assisted refresh | `task.allowAutomaticTasks` defaults to `off`; automatic tasks never run in an untrusted workspace; `security.workspace.trust.*` settings drive the agent-workspace playbook |
 
 ### Procedure
 
@@ -193,6 +232,9 @@ before bumping the Last Verified Against table.
    - uv: <https://docs.astral.sh/uv/reference/environment/>
    - cargo: <https://doc.rust-lang.org/cargo/reference/config.html>
    - go: <https://pkg.go.dev/cmd/go#hdr-Environment_variables>
+   - Claude Code: <https://code.claude.com/docs/en/settings>
+   - VS Code Workspace Trust:
+     <https://code.visualstudio.com/docs/editing/workspaces/workspace-trust>
 3. Update `tests/known-env-vars.txt` if names changed.
 4. Run `python3 tests/validate-docs.py`; it must exit 0.
 5. Update the playbook if a control’s flag name or unit changed.
@@ -202,7 +244,36 @@ before bumping the Last Verified Against table.
    future readers; see
    [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md)).
 
-## Sourcing And Citation Rules
+## Maintaining `scripts/audit_workspace.py`
+
+The scanner carries three kinds of knowledge that decay at different rates.
+When a new open-time or load-time campaign is verified, update the matching constant and
+say which campaign motivated it:
+
+- **`KEYV_HOST_ARTIFACTS` and `KNOWN_PAYLOAD_FILENAMES`** are campaign-specific IOCs and
+  age fastest. Add new ones; do not delete old ones, since an old artifact on disk is
+  still a finding.
+- **`AGENT_INSTRUCTION_FILES` and `AGENT_INSTRUCTION_GLOBS`** track which files agents
+  read as trusted context.
+  Add a path whenever a widely-used agent introduces one.
+- **`PTH_ALLOWLIST_PREFIXES`** is the opposite: it suppresses findings, so additions
+  need more care than IOCs do.
+  Only add a prefix after confirming the file is generated by a packaging tool rather
+  than by a package author, and record why in a comment.
+
+The autostart check’s config paths (`.vscode/tasks.json`, `.claude/settings.json`,
+`.codex/hooks.json`, `.devcontainer/`, `.mcp.json`) are hardcoded in
+`check_autostart()`; add a path there whenever a widely-used agent or editor introduces
+a new repo-committed autostart file, and mirror the addition in
+`hardening-agent-workspaces.md` (attack-surface table, triage commands, CI guard) and
+`AGENTS.md` rule 6.
+
+Run `python3 tests/test_audit_workspace.py` after any change; it builds synthetic
+repositories for each pattern (JSONC with trailing commas, Codex hooks, `.agents/` skill
+files with hidden Unicode, executable and non-executable `.pth` lines) and fails if a
+check silently stops matching, which is worse than no check.
+
+## Sourcing and Citation Rules
 
 Both doc types share these rules:
 
@@ -215,7 +286,7 @@ Both doc types share these rules:
 - **Refresh URLs annually**; replace dead links with archive.org snapshots if no live
   source remains.
 
-## Adding A New Ecosystem
+## Adding a New Ecosystem
 
 To add an ecosystem not yet covered (RubyGems, Hex, NuGet, Composer, Maven, etc.):
 
@@ -225,7 +296,7 @@ To add an ecosystem not yet covered (RubyGems, Hex, NuGet, Composer, Maven, etc.
    - `hardening-<ecosystem>.md`
    - `research-<ecosystem>-supply-chain-hardening.md`
 3. Update the top-level `README.md` ecosystem index.
-4. Confirm both new docs follow `std-doc-guidelines.md` and include the footer.
+4. Confirm both new docs follow `common-doc-guidelines.md` and include the footer.
 
 ## Suggested Prompts For Agents
 
@@ -245,11 +316,11 @@ For a tooling-driven update to a hardening doc:
 For adding a new ecosystem:
 
 > Add hardening and research docs for the [ecosystem] supply chain.
-> Follow `self-update-instructions.md` → “Adding A New Ecosystem”.
+> Follow `self-update-instructions.md` → “Adding a New Ecosystem”.
 > Use the npm pair as the structural template; create `hardening-<ecosystem>.md` and
 > `research-<ecosystem>-supply-chain-hardening.md` in a single commit.
 > Update the top-level README ecosystem index.
 
-<!-- This document follows std-doc-guidelines.md.
-Review guidelines before editing.
+<!-- This document follows common-doc-guidelines.md.
+See github.com/jlevy/practical-prose and review guidelines before editing.
 -->
