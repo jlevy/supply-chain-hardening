@@ -1,9 +1,18 @@
 # Supply Chain Hardening Guidebook
 
-**For AI agents and developers.** Concrete recipes, zero-dep audit scripts, and a
-curated watch list of recent compromises across npm, PyPI, crates.io, and Go modules.
+**A supply-chain payload can run at three moments: when you *install* a package, when
+you *import* it, and—since 2026—when you merely *open* a repo.
+This guidebook gives you concrete controls for each moment.** Copy-pasteable playbooks
+for npm, PyPI, crates.io, and Go modules, plus CI/CD pipelines and AI agent workspaces;
+zero-dependency audit scripts; and a curated watch list of recent compromises.
+Written so both developers and AI agents can execute it directly.
 
 **Author:** Joshua Levy (github.com/jlevy) with agent assistance
+
+**Last verified 2026-08-04** against npm 12.0.2, pnpm 11.20, Yarn 4.10, Bun 1.3, pip
+26.2, uv 0.12, and the current Claude Code and VS Code trust models
+([full version table](self-update-instructions.md#last-verified-against); Cargo and Go
+rows verified 2026-05-12).
 
 ## Start Here
 
@@ -37,9 +46,34 @@ Before opening any repo you did not write:
 uv run scripts/audit_workspace.py ./REPO   # or: python3 scripts/audit_workspace.py ./REPO
 ```
 
-If you work with AI agents, copy [`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md)
-into your codebase and reference it from your project’s `AGENTS.md`. Everything below is
-reference and rationale.
+**If you do only one thing:** copy
+[`SUPPLY-CHAIN-SECURITY.md`](SUPPLY-CHAIN-SECURITY.md) into your repo root and reference
+it from your project’s `AGENTS.md`—the same one-file motion as adding a
+`CODE_OF_CONDUCT.md`. It is a self-contained statement of the install rules, so every
+developer and AI agent working in your codebase sees them before installing anything.
+Everything below is reference and rationale.
+
+### Map of This Document
+
+Each section below opens with its takeaway, so you can stop reading at any depth:
+
+- [Choosing Your Path](#choosing-your-path)—which playbook applies to your situation
+  (consumer repo, publisher, agent user, high-risk machine).
+- [For AI Agents](#for-ai-agents)—the intent-to-action table: what to apply when a user
+  says “harden my X”.
+- [What This Repo Is (and Is Not)](#what-this-repo-is-and-is-not)—a methodology resource
+  with a curated watch list, not a real-time incident feed.
+- [The Layered Model](#the-layered-model-where-enforcement-lives)—where enforcement
+  lives (L1 shell defaults through L6 incident response), and why open-time attacks are
+  a new surface rather than a new layer.
+- [Why the Hardening Pattern Is Stable](#why-the-hardening-pattern-is-stable-even-when-the-incident-list-changes)—most
+  incidents are fast-yanked, so delay plus pinning neutralises the class; what that does
+  *not* cover.
+- [The Default Policy: A 14-Day Cool-Off](#the-default-policy-a-14-day-cool-off)—the one
+  rule, the per-tool one-liners, the exception process, and update discipline.
+- [Related Projects](#related-projects)—similar guides and how this repo differs.
+- [Authoritative Sources](#authoritative-sources)—where every incident claim gets
+  verified.
 
 ## Choosing Your Path
 
@@ -548,6 +582,30 @@ Each new ecosystem guide must:
 3. Cover macOS, Linux, and Windows where the underlying tooling supports them.
 4. End with the standard doc-guidelines footer.
 5. Follow the procedure in [`self-update-instructions.md`](self-update-instructions.md).
+
+## Related Projects
+
+Good guides exist in adjacent lanes—use them; several are cited throughout this repo.
+What none of them covers is the combination here: **four ecosystems plus CI/CD plus
+agent workspaces in one place, organised by when the payload runs, and written so an AI
+agent can execute it directly.**
+
+| Project | What it is | Where it stops |
+| --- | --- | --- |
+| [bodadotsh/npm-security-best-practices](https://github.com/bodadotsh/npm-security-best-practices) | Community npm guide: case studies, per-package-manager commands, developer and maintainer tiers | JavaScript ecosystem only; written for human readers; no load-time or open-time coverage |
+| [lirantal/npm-security-best-practices](https://github.com/lirantal/npm-security-best-practices) | npm security practices collection from the author of several npm security tools | npm only |
+| [OpenSSF npm Best Practices](https://github.com/ossf/package-manager-best-practices) and [Concise Guides](https://best.openssf.org/) | Consensus-reviewed foundation guidance; the reference for publisher-side controls | Moves slower than the attack wave; strongest on the maintainer/publisher side; npm-centric |
+| [GitHub’s npm supply chain roadmap](https://github.blog/security/supply-chain-security/our-plan-for-a-more-secure-npm-supply-chain/) | The registry’s own direction: trusted publishing, granular tokens, attestations | Vendor roadmap for one registry, not an operator’s playbook |
+| [efij/awesome-claude-code-security](https://github.com/efij/awesome-claude-code-security) and the scanners it indexes | Curated agent-security resources: attacks on and defenses for AI coding agents | Approaches open-time attacks from the agent-tooling side; no package-manager hardening |
+
+The trigger-class framing ([Start Here](#start-here)) is what makes the difference
+practical: install-time advice is plentiful elsewhere, but load-time payloads (Hades
+`.pth`) and open-time payloads (poisoned `CLAUDE.md`, committed editor tasks) defeat
+install-side controls entirely, and the playbooks for those two classes—plus a
+[scanner](scripts/audit_workspace.py) that checks for them—exist only here.
+The [freshness protocol](self-update-instructions.md) is the other differentiator: every
+version claim carries a verification date, because in this genre stale advice is
+indistinguishable from wrong advice.
 
 ## Authoritative Sources
 
