@@ -239,7 +239,8 @@ before bumping the Last Verified Against table.
 4. Run `python3 tests/validate-docs.py`; it must exit 0.
 5. Update the playbook if a control’s flag name or unit changed.
 6. Bump the row in the Last Verified Against table above with the verifier’s name and
-   the date.
+   the date, and refresh the “Last verified” line at the top of `README.md` to match (it
+   names the same versions; a stale date there undermines the whole repo).
 7. Open an audit-log entry if any control changed semantics (so the change is visible to
    future readers; see
    [`supply-chain-audit-log-template.md`](supply-chain-audit-log-template.md)).
